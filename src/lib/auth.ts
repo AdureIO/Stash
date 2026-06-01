@@ -1,0 +1,52 @@
+// Node.js runtime only — uses DB, bcrypt, cookies
+// Do NOT import this from middleware (use session.ts instead)
+import { SignJWT } from 'jose'
+import { cookies } from 'next/headers'
+import { db } from './db'
+import bcrypt from 'bcryptjs'
+import { SESSION_COOKIE, SESSION_DURATION, verifySession, type Session } from './session'
+
+export { SESSION_COOKIE, SESSION_DURATION, type Session }
+
+const SESSION_SECRET = new TextEncoder().encode(
+  process.env.TOKEN_SECRET || 'dev-secret-change-in-production'
+)
+
+export async function createSession(session: Session): Promise<string> {
+  return new SignJWT(session as unknown as Record<string, unknown>)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(`${SESSION_DURATION}s`)
+    .sign(SESSION_SECRET)
+}
+
+export async function getSession(): Promise<Session | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(SESSION_COOKIE)?.value
+  if (!token) return null
+  return verifySession(token)
+}
+
+export async function requireSession(): Promise<Session> {
+  const session = await getSession()
+  if (!session) throw new Error('Unauthorized')
+  return session
+}
+
+export async function requireAdmin(): Promise<Session> {
+  const session = await requireSession()
+  if (session.role !== 'admin') throw new Error('Forbidden')
+  return session
+}
+
+export async function login(username: string, password: string): Promise<string | null> {
+  const user = db.users.findByUsername(username)
+  if (!user) return null
+
+  const valid = await bcrypt.compare(password, user.password_hash)
+  if (!valid) return null
+
+  db.users.update(user.id, { last_login: new Date().toISOString() })
+
+  return createSession({ userId: user.id, username: user.username, role: user.role })
+}
