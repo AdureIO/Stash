@@ -4,9 +4,20 @@ import { execSync } from 'child_process'
 
 const CONFIG_PATH = '/data/registry.yml'
 
+function requireEnv(key: string, fallback: string): string {
+  const v = process.env[key]
+  if (!v) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`[depot] ${key} environment variable is not set. Required in production.`)
+    }
+    return fallback
+  }
+  return v
+}
+
 export function regenerateConfig(readonly: boolean) {
-  const registrySecret = process.env.REGISTRY_SECRET || 'registry-secret'
-  const webhookSecret = process.env.WEBHOOK_SECRET || 'webhook-secret'
+  const registrySecret = requireEnv('REGISTRY_SECRET', 'dev-registry-secret')
+  const webhookSecret = requireEnv('WEBHOOK_SECRET', 'dev-webhook-secret')
   const authRealm = (process.env.PUBLIC_URL || 'http://localhost:3000') + '/api/auth/token'
   const port = process.env.PORT || '3000'
 

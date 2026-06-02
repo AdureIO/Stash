@@ -16,8 +16,8 @@ FROM node:22-alpine AS runner
 LABEL org.opencontainers.image.title="Depot" \
       org.opencontainers.image.description="Self-hosted Docker, Maven & NPM registry admin panel" \
       org.opencontainers.image.url="https://github.com/adure/depot" \
-      org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.authors="Dieter Martens / ADURE"
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.authors="Adure"
 
 RUN apk add --no-cache openssl supervisor ca-certificates su-exec && \
     addgroup -g 1001 -S depot && \

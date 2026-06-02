@@ -14,17 +14,18 @@ export interface Session {
 
 function secret() {
   const s = process.env.TOKEN_SECRET
-  if (!s && process.env.NODE_ENV === 'production' && typeof window === 'undefined') {
-    // Only enforce at runtime (request time), not during build static generation
-    // Check is skipped if we're in the build phase (no incoming request context)
-    const isRuntime = process.env.NEXT_PHASE !== 'phase-production-build'
-    if (isRuntime) {
-      console.error('[depot] FATAL: TOKEN_SECRET must be set in production. Set it via environment variable.')
-      // Log rather than throw so existing sessions can still be verified
-      // Throw would crash the process on every request
+  if (!s) {
+    // During Next.js build, NEXT_PHASE is set — allow the fallback so the build completes.
+    // At actual request time (runtime) in production, NEXT_PHASE is unset — hard fail.
+    if (process.env.NODE_ENV === 'production' && !process.env.NEXT_PHASE) {
+      throw new Error(
+        '[depot] TOKEN_SECRET environment variable is not set. ' +
+        'Set a cryptographically random value (e.g. openssl rand -hex 32) before starting in production.'
+      )
     }
+    return new TextEncoder().encode('dev-secret-change-in-production')
   }
-  return new TextEncoder().encode(s || 'dev-secret-change-in-production')
+  return new TextEncoder().encode(s)
 }
 
 export async function verifySession(token: string): Promise<Session | null> {

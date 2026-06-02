@@ -8,21 +8,27 @@ import { SESSION_COOKIE, SESSION_DURATION, verifySession, type Session } from '.
 
 export { SESSION_COOKIE, SESSION_DURATION, type Session }
 
-function getSessionSecret() {
+// Lazy — evaluated at request time, not module init (so Next.js build doesn't fail)
+function getSessionSecret(): Uint8Array {
   const s = process.env.TOKEN_SECRET
-  if (!s && process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE !== 'phase-production-build') {
-    console.error('[depot] FATAL: TOKEN_SECRET must be set in production')
+  if (!s) {
+    if (process.env.NODE_ENV === 'production' && !process.env.NEXT_PHASE) {
+      throw new Error(
+        '[depot] TOKEN_SECRET environment variable is not set. ' +
+        'Set a cryptographically random value before starting in production.'
+      )
+    }
+    return new TextEncoder().encode('dev-secret-change-in-production')
   }
-  return new TextEncoder().encode(s || 'dev-secret-change-in-production')
+  return new TextEncoder().encode(s)
 }
-const SESSION_SECRET = getSessionSecret()
 
 export async function createSession(session: Session): Promise<string> {
   return new SignJWT(session as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION}s`)
-    .sign(SESSION_SECRET)
+    .sign(getSessionSecret())
 }
 
 export async function getSession(): Promise<Session | null> {
