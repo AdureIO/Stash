@@ -2,7 +2,7 @@
 	"name": "depot",
 	"version": "0.1.0",
 	"description": "Self-hosted Docker, Maven & NPM registry admin panel",
-	"license": "AGPL-3.0-only",
+	"license": "MIT",
 	"author": "Adure",
 	"homepage": "https://github.com/adure/depot",
 	"scripts": {
