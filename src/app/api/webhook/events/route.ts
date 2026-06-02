@@ -36,14 +36,15 @@ interface RegistryEnvelope {
 }
 
 export async function POST(req: NextRequest) {
-  // Validate webhook secret
+  // Always require webhook secret — reject unconfigured ingest
   const expectedSecret = process.env.WEBHOOK_SECRET
-  if (expectedSecret) {
-    const auth = req.headers.get('Authorization') || ''
-    const token = auth.replace('Bearer ', '')
-    if (token !== expectedSecret) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+  if (!expectedSecret) {
+    return NextResponse.json({ error: 'Webhook ingest disabled — set WEBHOOK_SECRET' }, { status: 503 })
+  }
+  const auth = req.headers.get('Authorization') || ''
+  const token = auth.replace('Bearer ', '').trim()
+  if (!token || token !== expectedSecret) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   let body: RegistryEnvelope

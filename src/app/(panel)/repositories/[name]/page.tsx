@@ -31,7 +31,7 @@ export default async function RepositoryDetailPage({ params }: Props) {
 
   return (
     <div>
-      <Link href="/repositories" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4 transition-colors">
+      <Link href="/repositories" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700 mb-4 transition-colors">
         <ArrowLeft size={14} /> Repositories
       </Link>
 
@@ -44,30 +44,30 @@ export default async function RepositoryDetailPage({ params }: Props) {
       <div className="grid grid-cols-3 gap-3 mb-6">
         <Card>
           <CardContent className="flex items-center gap-3">
-            <HardDrive size={16} className="text-slate-400" />
+            <HardDrive size={16} className="text-zinc-400" />
             <div>
-              <p className="text-lg font-bold text-slate-900">{formatBytes(totalSize)}</p>
-              <p className="text-xs text-slate-500">Total size</p>
+              <p className="text-lg font-semibold text-zinc-900">{formatBytes(totalSize)}</p>
+              <p className="text-xs text-zinc-500">Total size</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-3">
-            <Layers size={16} className="text-slate-400" />
+            <Layers size={16} className="text-zinc-400" />
             <div>
-              <p className="text-lg font-bold text-slate-900">{details.length}</p>
-              <p className="text-xs text-slate-500">Tags</p>
+              <p className="text-lg font-semibold text-zinc-900">{details.length}</p>
+              <p className="text-xs text-zinc-500">Tags</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-3">
-            <Calendar size={16} className="text-slate-400" />
+            <Calendar size={16} className="text-zinc-400" />
             <div>
-              <p className="text-sm font-bold text-slate-900">
+              <p className="text-sm font-semibold text-zinc-900">
                 {formatRelative(details[0]?.created || null)}
               </p>
-              <p className="text-xs text-slate-500">Last push</p>
+              <p className="text-xs text-zinc-500">Last push</p>
             </div>
           </CardContent>
         </Card>
@@ -94,20 +94,20 @@ export default async function RepositoryDetailPage({ params }: Props) {
             {details.map(tag => (
               <Tr key={tag.tag}>
                 <Td>
-                  <span className="font-mono text-sm font-medium text-slate-900">{tag.tag}</span>
+                  <span className="font-mono text-sm font-medium text-zinc-900">{tag.tag}</span>
                 </Td>
                 <Td>
-                  <span className="font-mono text-xs text-slate-500">{shortDigest(tag.digest)}</span>
+                  <span className="font-mono text-xs text-zinc-500">{shortDigest(tag.digest)}</span>
                 </Td>
                 <Td>{formatBytes(tag.size)}</Td>
                 <Td>
                   {tag.os && tag.architecture
                     ? <Badge variant="default">{tag.os}/{tag.architecture}</Badge>
-                    : <span className="text-slate-400">—</span>}
+                    : <span className="text-zinc-400">—</span>}
                 </Td>
-                <Td className="text-slate-500 text-xs">{formatDate(tag.created)}</Td>
+                <Td className="text-zinc-500 text-xs">{formatDate(tag.created)}</Td>
                 <Td>
-                  <code className="text-xs bg-slate-50 border border-slate-100 rounded px-2 py-0.5 text-slate-600">
+                  <code className="text-xs bg-zinc-50 border border-zinc-100 rounded px-2 py-0.5 text-zinc-600">
                     docker pull {repoName}:{tag.tag}
                   </code>
                 </Td>
@@ -118,7 +118,7 @@ export default async function RepositoryDetailPage({ params }: Props) {
             ))}
             {details.length === 0 && (
               <Tr>
-                <Td className="py-8 text-center text-slate-400" colSpan={7}>No tags found</Td>
+                <Td className="py-8 text-center text-zinc-400" colSpan={7}>No tags found</Td>
               </Tr>
             )}
           </Tbody>

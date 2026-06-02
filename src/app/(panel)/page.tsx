@@ -83,8 +83,8 @@ export default async function DashboardPage() {
                 <Icon size={18} className={color} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-slate-900">{value}</p>
-                <p className="text-xs text-slate-500">{label}</p>
+                <p className="text-xl font-semibold text-zinc-900 tabular-nums">{value}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{label}</p>
               </div>
             </CardContent>
           </Card>
@@ -99,15 +99,15 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader><CardTitle>Recent events</CardTitle></CardHeader>
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-zinc-50">
             {recentEvents.length === 0 && (
-              <p className="px-5 py-8 text-sm text-center text-slate-400">No events yet</p>
+              <p className="px-5 py-8 text-sm text-center text-zinc-400">No events yet</p>
             )}
             {recentEvents.map(e => (
               <div key={e.id} className="px-5 py-3 flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">{e.repository}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-sm font-medium text-zinc-800 truncate">{e.repository}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">
                     {e.tag ? `tag: ${e.tag}` : e.digest?.slice(7, 19)} · {formatRelative(e.timestamp)}
                   </p>
                 </div>

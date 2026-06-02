@@ -38,33 +38,33 @@ export function SearchPanel() {
   return (
     <div className="max-w-2xl">
       <div className="relative mb-6">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
         <input
           type="text"
           value={query}
           onChange={e => handleSearch(e.target.value)}
           placeholder="Search repositories, tags, actors..."
-          className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+          className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           autoFocus
         />
-        {loading && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">Searching...</span>}
+        {loading && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400">Searching...</span>}
       </div>
 
       {results && query.length >= 2 && (
         <div className="space-y-4">
-          <p className="text-xs text-slate-500">{total} result{total !== 1 ? 's' : ''} for &ldquo;{query}&rdquo;</p>
+          <p className="text-xs text-zinc-500">{total} result{total !== 1 ? 's' : ''} for &ldquo;{query}&rdquo;</p>
 
           {results.repositories.length > 0 && (
             <Card>
-              <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-                <Package size={13} className="text-slate-400" />
-                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Repositories</span>
+              <div className="px-4 py-3 border-b border-zinc-100 flex items-center gap-2">
+                <Package size={13} className="text-zinc-400" />
+                <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Repositories</span>
               </div>
-              <div className="divide-y divide-slate-50">
+              <div className="divide-y divide-zinc-50">
                 {results.repositories.map(r => (
                   <Link key={r.name} href={`/repositories/${encodeURIComponent(r.name)}`}
-                    className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors">
-                    <span className="text-sm font-medium text-slate-900">{r.name}</span>
+                    className="flex items-center justify-between px-4 py-3 hover:bg-zinc-50 transition-colors">
+                    <span className="text-sm font-medium text-zinc-900">{r.name}</span>
                     <Badge variant="default">{r.tagCount} tags</Badge>
                   </Link>
                 ))}
@@ -74,21 +74,21 @@ export function SearchPanel() {
 
           {results.events.length > 0 && (
             <Card>
-              <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-                <Activity size={13} className="text-slate-400" />
-                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Events</span>
+              <div className="px-4 py-3 border-b border-zinc-100 flex items-center gap-2">
+                <Activity size={13} className="text-zinc-400" />
+                <span className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">Events</span>
               </div>
-              <div className="divide-y divide-slate-50">
+              <div className="divide-y divide-zinc-50">
                 {results.events.map(e => (
                   <div key={e.id} className="flex items-center justify-between px-4 py-3">
                     <div>
-                      <span className="text-sm font-medium text-slate-900">{e.repository}</span>
-                      {e.tag && <span className="text-xs text-slate-400 ml-2">:{e.tag}</span>}
-                      {e.actor && <span className="text-xs text-slate-400 ml-2">by {e.actor}</span>}
+                      <span className="text-sm font-medium text-zinc-900">{e.repository}</span>
+                      {e.tag && <span className="text-xs text-zinc-400 ml-2">:{e.tag}</span>}
+                      {e.actor && <span className="text-xs text-zinc-400 ml-2">by {e.actor}</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       {actionBadge(e.action)}
-                      <span className="text-xs text-slate-400">{formatRelative(e.timestamp)}</span>
+                      <span className="text-xs text-zinc-400">{formatRelative(e.timestamp)}</span>
                     </div>
                   </div>
                 ))}
@@ -98,7 +98,7 @@ export function SearchPanel() {
 
           {total === 0 && (
             <Card>
-              <div className="py-12 text-center text-slate-400 text-sm">No results found</div>
+              <div className="py-12 text-center text-zinc-400 text-sm">No results found</div>
             </Card>
           )}
         </div>

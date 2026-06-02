@@ -13,7 +13,15 @@ RUN npm run build
 
 FROM node:22-alpine AS runner
 
-RUN apk add --no-cache openssl supervisor ca-certificates
+LABEL org.opencontainers.image.title="Depot" \
+      org.opencontainers.image.description="Self-hosted Docker, Maven & NPM registry admin panel" \
+      org.opencontainers.image.url="https://github.com/adure/depot" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.authors="Dieter Martens / ADURE"
+
+RUN apk add --no-cache openssl supervisor ca-certificates su-exec && \
+    addgroup -g 1001 -S depot && \
+    adduser -u 1001 -S depot -G depot
 
 COPY --from=registry-bin /bin/registry /usr/local/bin/registry
 
@@ -26,9 +34,12 @@ COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    chown -R depot:depot /app
 
-VOLUME ["/data"]
+# /data is a volume — entrypoint will chown it on first boot
+# supervisor and registry need to write to /var/log, /tmp, /data
+# We run entrypoint as root so it can manage permissions, then drop to depot
 EXPOSE 3000
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -11,12 +11,14 @@ import { getFeatures } from '@/lib/features'
 
 const MAVEN_ROOT = process.env.MAVEN_ROOT || '/data/maven'
 
-// Resolve path safely — returns null if outside MAVEN_ROOT
+// Resolve path safely — guards against path traversal attacks
 function safe(segments: string[]): string | null {
-  const resolved = path.resolve(MAVEN_ROOT, path.join(...segments))
-  return resolved.startsWith(MAVEN_ROOT + path.sep) || resolved === MAVEN_ROOT
-    ? resolved
-    : null
+  // Reject any segment containing traversal sequences
+  if (segments.some(s => s.includes('..') || s.includes('\0'))) return null
+  const root = path.resolve(MAVEN_ROOT)
+  const resolved = path.resolve(root, ...segments)
+  // Must be inside root (use '/' separator explicitly, not path.sep, for Docker containers)
+  return resolved === root || resolved.startsWith(root + '/') ? resolved : null
 }
 
 async function authenticate(req: NextRequest) {

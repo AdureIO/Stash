@@ -104,16 +104,16 @@ export function CleanupList({ rules: initial }: Props) {
           <Tbody>
             {rules.map(r => (
               <Tr key={r.id}>
-                <Td className="font-medium text-slate-900">{r.name}</Td>
-                <Td><code className="text-xs bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">{r.repository_pattern}</code></Td>
+                <Td className="font-medium text-zinc-900">{r.name}</Td>
+                <Td><code className="text-xs bg-zinc-50 border border-zinc-100 px-1.5 py-0.5 rounded">{r.repository_pattern}</code></Td>
                 <Td>{r.keep_last_n ?? '—'}</Td>
                 <Td>{r.max_age_days ? `${r.max_age_days}d` : '—'}</Td>
                 <Td>{r.delete_untagged ? <Badge variant="warning">yes</Badge> : '—'}</Td>
-                <Td className="text-xs text-slate-500">{formatRelative(r.last_run)}</Td>
+                <Td className="text-xs text-zinc-500">{formatRelative(r.last_run)}</Td>
                 <Td>{r.last_deleted != null ? r.last_deleted : '—'}</Td>
                 <Td>
                   <button onClick={() => toggleActive(r)}>
-                    {r.active ? <CheckCircle size={16} className="text-green-500" /> : <XCircle size={16} className="text-slate-300" />}
+                    {r.active ? <CheckCircle size={16} className="text-green-500" /> : <XCircle size={16} className="text-zinc-300" />}
                   </button>
                 </Td>
                 <Td>
@@ -129,7 +129,7 @@ export function CleanupList({ rules: initial }: Props) {
               </Tr>
             ))}
             {rules.length === 0 && (
-              <Tr><Td className="py-10 text-center text-slate-400" colSpan={9}>No cleanup rules defined</Td></Tr>
+              <Tr><Td className="py-10 text-center text-zinc-400" colSpan={9}>No cleanup rules defined</Td></Tr>
             )}
           </Tbody>
         </Table>
@@ -141,7 +141,7 @@ export function CleanupList({ rules: initial }: Props) {
           <Input label="Repository pattern" name="repository_pattern" placeholder="* (all repos) or myapp/*" />
           <Input label="Keep last N tags" name="keep_last_n" type="number" min="1" placeholder="e.g. 5" />
           <Input label="Delete tags older than (days)" name="max_age_days" type="number" min="1" placeholder="e.g. 30" />
-          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-zinc-600 cursor-pointer">
             <input type="checkbox" name="delete_untagged" className="rounded" />
             Also delete untagged manifests
           </label>
@@ -153,7 +153,7 @@ export function CleanupList({ rules: initial }: Props) {
       </Dialog>
 
       <Dialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Delete rule">
-        <p className="text-sm text-slate-600 mb-5">Delete rule <span className="font-medium">{deleteItem?.name}</span>?</p>
+        <p className="text-sm text-zinc-600 mb-5">Delete rule <span className="font-medium">{deleteItem?.name}</span>?</p>
         <div className="flex gap-2 justify-end">
           <Button variant="secondary" size="sm" onClick={() => setDeleteItem(null)}>Cancel</Button>
           <Button variant="danger" size="sm" onClick={handleDelete} disabled={loading}>Delete</Button>

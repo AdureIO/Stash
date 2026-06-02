@@ -4,14 +4,17 @@ set -e
 DATA=/data
 mkdir -p "$DATA/registry" "$DATA/maven"
 
+# Fix ownership of the data volume so the depot user can write to it
+chown -R depot:depot "$DATA" 2>/dev/null || true
+
 # --- Auth keypair ---
 if [ ! -f "$DATA/auth.key" ]; then
-  echo "[registry-admin] First boot — generating auth keypair..."
+  echo "[depot] First boot — generating auth keypair..."
   openssl genrsa -out "$DATA/auth.key" 4096 2>/dev/null
   openssl req -new -x509 -key "$DATA/auth.key" \
     -out "$DATA/auth.crt" -days 3650 \
     -subj "/CN=registry-auth" 2>/dev/null
-  echo "[registry-admin] Auth keypair generated."
+  echo "[depot] Auth keypair generated."
 fi
 
 # --- Persist secrets to volume so restarts don't kill sessions ---
@@ -34,7 +37,7 @@ REGISTRY_AUTH_REALM="${PUBLIC_URL:-http://localhost:3000}/api/auth/token"
 
 # --- Write registry config (only if Docker is enabled) ---
 if [ "${ENABLE_DOCKER:-true}" != "true" ]; then
-  echo "[registry-admin] Docker registry disabled — skipping registry config."
+  echo "[depot] Docker registry disabled — skipping registry config."
 else
 cat > "$DATA/registry.yml" <<EOF
 version: 0.1
@@ -78,7 +81,8 @@ EOF
 fi
 
 # --- Write supervisord env file so Next.js picks up the secrets ---
-cat > /tmp/nextjs.env <<EOF
+# Restricted permissions — secrets should not be world-readable
+( umask 077 && cat > /tmp/nextjs.env <<EOF
 NODE_ENV=production
 PORT=3000
 DATABASE_URL=/data/db.sqlite
@@ -94,6 +98,7 @@ AUTH_CERT_PATH=/data/auth.crt
 ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
 EOF
+)
 
 # --- Run DB migrations ---
 DATABASE_URL="$DATA/db.sqlite" \
@@ -136,5 +141,7 @@ priority=10
 EOF
 fi
 
-echo "[registry-admin] Starting services (docker=${ENABLE_DOCKER:-true} maven=${ENABLE_MAVEN:-true})..."
-exec supervisord -c /tmp/supervisord.conf
+echo "[depot] Starting services (docker=${ENABLE_DOCKER:-true} maven=${ENABLE_MAVEN:-true})..."
+# Drop from root to depot user for all supervised processes
+exec su-exec depot supervisord -c /tmp/supervisord.conf 2>/dev/null || \
+  exec supervisord -c /tmp/supervisord.conf

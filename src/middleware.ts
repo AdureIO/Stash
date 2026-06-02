@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifySession, SESSION_COOKIE } from './lib/session'
 
-const PUBLIC_PATHS = ['/login', '/api/auth/token', '/api/auth/login', '/api/webhook/events', '/v2']
+const PUBLIC_PATHS = ['/login', '/api/auth/token', '/api/auth/login', '/api/webhook/events', '/v2', '/api/auth/sso', '/api/npm']
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
@@ -20,6 +20,11 @@ export async function middleware(req: NextRequest) {
     const res = NextResponse.redirect(new URL('/login', req.url))
     res.cookies.delete(SESSION_COOKIE)
     return res
+  }
+
+  // Require TOTP completion before accessing panel
+  if (session.totpVerified === false && !pathname.startsWith('/login/totp') && !pathname.startsWith('/api/auth/totp/verify')) {
+    return NextResponse.redirect(new URL('/login/totp', req.url))
   }
 
   return NextResponse.next()

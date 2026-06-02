@@ -31,10 +31,10 @@ export function DeleteTagButton({ repo, tag, digest }: Props) {
       </Button>
 
       <Dialog open={open} onClose={() => setOpen(false)} title="Delete tag">
-        <p className="text-sm text-slate-600 mb-1">
+        <p className="text-sm text-zinc-600 mb-1">
           Delete <span className="font-mono font-medium">{repo}:{tag}</span>?
         </p>
-        <p className="text-xs text-slate-400 mb-5">This removes the manifest. Layers are cleaned up on next garbage collection.</p>
+        <p className="text-xs text-zinc-400 mb-5">This removes the manifest. Layers are cleaned up on next garbage collection.</p>
         <div className="flex gap-2 justify-end">
           <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
           <Button variant="danger" size="sm" onClick={handleDelete} disabled={loading}>

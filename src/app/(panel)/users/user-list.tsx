@@ -12,7 +12,8 @@ import { formatRelative } from '@/lib/utils'
 import { apiFetch } from '@/lib/api'
 import type { User, AccessRule } from '@/lib/db'
 
-type UserWithRules = User & { rules: AccessRule[] }
+// Omit password_hash — never sent from server to client
+type UserWithRules = Omit<User, 'password_hash'> & { rules: AccessRule[] }
 
 const roleIcon = { admin: Shield, push: Upload, viewer: Eye }
 const roleBadge = { admin: 'info', push: 'success', viewer: 'default' } as const
@@ -97,14 +98,14 @@ export function UserList({ users: initial }: Props) {
               return (
                 <Tr key={u.id}>
                   <Td>
-                    <span className="flex items-center gap-2 font-medium text-slate-900">
-                      <Icon size={14} className="text-slate-400" />
+                    <span className="flex items-center gap-2 font-medium text-zinc-900">
+                      <Icon size={14} className="text-zinc-400" />
                       {u.username}
                     </span>
                   </Td>
                   <Td><Badge variant={roleBadge[u.role]}>{u.role}</Badge></Td>
-                  <Td className="text-slate-500 text-xs">{formatRelative(u.last_login)}</Td>
-                  <Td className="text-slate-500 text-xs">{formatRelative(u.created_at)}</Td>
+                  <Td className="text-zinc-500 text-xs">{formatRelative(u.last_login)}</Td>
+                  <Td className="text-zinc-500 text-xs">{formatRelative(u.created_at)}</Td>
                   <Td>
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="sm" onClick={() => setEditUser(u)}><Pencil size={13} /></Button>
@@ -117,7 +118,7 @@ export function UserList({ users: initial }: Props) {
               )
             })}
             {users.length === 0 && (
-              <Tr><Td className="py-8 text-center text-slate-400" colSpan={5}>No users</Td></Tr>
+              <Tr><Td className="py-8 text-center text-zinc-400" colSpan={5}>No users</Td></Tr>
             )}
           </Tbody>
         </Table>
@@ -162,7 +163,7 @@ export function UserList({ users: initial }: Props) {
 
       {/* Delete confirm */}
       <Dialog open={!!deleteUser} onClose={() => setDeleteUser(null)} title="Delete user">
-        <p className="text-sm text-slate-600 mb-5">
+        <p className="text-sm text-zinc-600 mb-5">
           Delete user <span className="font-medium">{deleteUser?.username}</span>? This cannot be undone.
         </p>
         <div className="flex gap-2 justify-end">

@@ -8,9 +8,14 @@ import { SESSION_COOKIE, SESSION_DURATION, verifySession, type Session } from '.
 
 export { SESSION_COOKIE, SESSION_DURATION, type Session }
 
-const SESSION_SECRET = new TextEncoder().encode(
-  process.env.TOKEN_SECRET || 'dev-secret-change-in-production'
-)
+function getSessionSecret() {
+  const s = process.env.TOKEN_SECRET
+  if (!s && process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE !== 'phase-production-build') {
+    console.error('[depot] FATAL: TOKEN_SECRET must be set in production')
+  }
+  return new TextEncoder().encode(s || 'dev-secret-change-in-production')
+}
+const SESSION_SECRET = getSessionSecret()
 
 export async function createSession(session: Session): Promise<string> {
   return new SignJWT(session as unknown as Record<string, unknown>)

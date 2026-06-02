@@ -96,9 +96,9 @@ export default async function PackagesPage() {
           {artifacts.length === 0 && (
             <Card>
               <div className="py-16 text-center">
-                <Box size={32} className="text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 text-sm">No packages yet</p>
-                <p className="text-slate-400 text-xs mt-1">Push a Maven artifact to get started</p>
+                <Box size={32} className="text-zinc-300 mx-auto mb-3" />
+                <p className="text-zinc-500 text-sm">No packages yet</p>
+                <p className="text-zinc-400 text-xs mt-1">Push a Maven artifact to get started</p>
               </div>
             </Card>
           )}
@@ -109,7 +109,7 @@ export default async function PackagesPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <Package size={14} className="text-blue-500 flex-shrink-0" />
-                    <code className="text-sm font-semibold text-slate-900 truncate">
+                    <code className="text-sm font-semibold text-zinc-900 truncate">
                       {a.groupId}:{a.artifactId}
                     </code>
                   </div>
@@ -120,8 +120,8 @@ export default async function PackagesPage() {
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-medium text-slate-700">{formatBytes(a.size)}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{a.versions.length} version{a.versions.length !== 1 ? 's' : ''}</p>
+                  <p className="text-sm font-medium text-zinc-700">{formatBytes(a.size)}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">{a.versions.length} version{a.versions.length !== 1 ? 's' : ''}</p>
                 </div>
               </CardContent>
             </Card>
@@ -134,16 +134,16 @@ export default async function PackagesPage() {
             <CardHeader><CardTitle>Maven</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <p className="text-xs font-medium text-slate-500 mb-1.5">~/.m2/settings.xml</p>
-                <pre className="text-xs bg-slate-900 text-slate-300 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{`<server>
+                <p className="text-xs font-medium text-zinc-500 mb-1.5">~/.m2/settings.xml</p>
+                <pre className="text-xs bg-zinc-900 text-zinc-300 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{`<server>
   <id>registry</id>
   <username>YOUR_USER</username>
   <password>YOUR_PASS</password>
 </server>`}</pre>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500 mb-1.5">pom.xml</p>
-                <pre className="text-xs bg-slate-900 text-slate-300 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{`<repository>
+                <p className="text-xs font-medium text-zinc-500 mb-1.5">pom.xml</p>
+                <pre className="text-xs bg-zinc-900 text-zinc-300 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{`<repository>
   <id>registry</id>
   <url>${mavenUrl}</url>
 </repository>
@@ -161,7 +161,7 @@ export default async function PackagesPage() {
           <Card>
             <CardHeader><CardTitle>Gradle</CardTitle></CardHeader>
             <CardContent>
-              <pre className="text-xs bg-slate-900 text-slate-300 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{`maven {
+              <pre className="text-xs bg-zinc-900 text-zinc-300 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{`maven {
   url = "${mavenUrl}"
   credentials {
     username = "YOUR_USER"
@@ -174,7 +174,7 @@ export default async function PackagesPage() {
           <Card>
             <CardHeader><CardTitle>Deploy</CardTitle></CardHeader>
             <CardContent>
-              <pre className="text-xs bg-slate-900 text-slate-300 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{`mvn deploy \\
+              <pre className="text-xs bg-zinc-900 text-zinc-300 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{`mvn deploy \\
   -DaltDeploymentRepository=\\
   registry::${mavenUrl}`}</pre>
             </CardContent>

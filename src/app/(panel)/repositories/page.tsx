@@ -63,9 +63,9 @@ export default async function RepositoriesPage() {
       {summaries.length === 0 && (
         <Card>
           <div className="py-16 text-center">
-            <Package size={32} className="text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 text-sm">No repositories yet</p>
-            <p className="text-slate-400 text-xs mt-1">Push an image to get started</p>
+            <Package size={32} className="text-zinc-300 mx-auto mb-3" />
+            <p className="text-zinc-500 text-sm">No repositories yet</p>
+            <p className="text-zinc-400 text-xs mt-1">Push an image to get started</p>
           </div>
         </Card>
       )}
@@ -80,8 +80,8 @@ export default async function RepositoriesPage() {
                     <Package size={16} className="text-blue-600" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-900 text-sm">{repo.name}</p>
-                    <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-3">
+                    <p className="font-medium text-zinc-900 text-sm">{repo.name}</p>
+                    <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-3">
                       <span className="flex items-center gap-1">
                         <Tag size={10} /> {repo.tagCount} tags
                       </span>
@@ -95,7 +95,7 @@ export default async function RepositoriesPage() {
                   {repo.totalSize > 0 && (
                     <Badge variant="default">{formatBytes(repo.totalSize)}</Badge>
                   )}
-                  <span className="text-slate-300 text-sm">→</span>
+                  <span className="text-zinc-300 text-sm">→</span>
                 </div>
               </div>
             </Card>

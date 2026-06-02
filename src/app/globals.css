@@ -3,6 +3,44 @@
 @tailwind utilities;
 
 @layer base {
-  *, *::before, *::after { box-sizing: border-box; }
-  body { @apply bg-slate-50 text-slate-900 antialiased; }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-zinc-50 text-zinc-900;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Consistent scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-zinc-300 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-zinc-400; }
+
+  /* Remove default focus outline — we add our own */
+  *:focus { outline: none; }
+  *:focus-visible { @apply ring-2 ring-blue-500/40 ring-offset-1; }
+
+  /* Code */
+  code, kbd, pre { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
+}
+
+@layer utilities {
+  .sidebar-text {
+    @apply text-[13px] font-medium;
+    letter-spacing: -0.01em;
+  }
 }

@@ -68,7 +68,7 @@ export function WebhookList({ webhooks: initial }: Props) {
   }
 
   const statusBadge = (status: number | null) => {
-    if (status === null) return <span className="text-slate-300 text-xs">—</span>
+    if (status === null) return <span className="text-zinc-300 text-xs">—</span>
     if (status >= 200 && status < 300) return <Badge variant="success">{status}</Badge>
     if (status === 0) return <Badge variant="danger">timeout</Badge>
     return <Badge variant="warning">{status}</Badge>
@@ -97,24 +97,24 @@ export function WebhookList({ webhooks: initial }: Props) {
           <Tbody>
             {webhooks.map(w => (
               <Tr key={w.id}>
-                <Td className="font-medium text-slate-900">{w.name}</Td>
+                <Td className="font-medium text-zinc-900">{w.name}</Td>
                 <Td>
-                  <span className="flex items-center gap-1.5 text-slate-500 text-xs">
+                  <span className="flex items-center gap-1.5 text-zinc-500 text-xs">
                     <Globe size={11} />
                     <span className="truncate max-w-[180px]">{w.url}</span>
                   </span>
                 </Td>
-                <Td><code className="text-xs bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">{w.repository_pattern}</code></Td>
+                <Td><code className="text-xs bg-zinc-50 border border-zinc-100 px-1.5 py-0.5 rounded">{w.repository_pattern}</code></Td>
                 <Td>
                   <div className="flex gap-1">
                     {w.events.split(',').map(ev => <Badge key={ev} variant="default">{ev.trim()}</Badge>)}
                   </div>
                 </Td>
-                <Td className="text-slate-500 text-xs">{formatRelative(w.last_triggered)}</Td>
+                <Td className="text-zinc-500 text-xs">{formatRelative(w.last_triggered)}</Td>
                 <Td>{statusBadge(w.last_status)}</Td>
                 <Td>
                   <button onClick={() => toggleActive(w)} className="transition-colors">
-                    {w.active ? <CheckCircle size={16} className="text-green-500" /> : <XCircle size={16} className="text-slate-300" />}
+                    {w.active ? <CheckCircle size={16} className="text-green-500" /> : <XCircle size={16} className="text-zinc-300" />}
                   </button>
                 </Td>
                 <Td>
@@ -125,7 +125,7 @@ export function WebhookList({ webhooks: initial }: Props) {
               </Tr>
             ))}
             {webhooks.length === 0 && (
-              <Tr><Td className="py-10 text-center text-slate-400" colSpan={8}>No webhooks configured</Td></Tr>
+              <Tr><Td className="py-10 text-center text-zinc-400" colSpan={8}>No webhooks configured</Td></Tr>
             )}
           </Tbody>
         </Table>
@@ -138,10 +138,10 @@ export function WebhookList({ webhooks: initial }: Props) {
           <Input label="Repository pattern" name="repository_pattern" placeholder="* (all repos)" />
           <Input label="Secret" name="secret" placeholder="Optional — sent as X-Webhook-Secret header" />
           <div>
-            <p className="text-sm font-medium text-slate-700 mb-2">Trigger on</p>
+            <p className="text-sm font-medium text-zinc-700 mb-2">Trigger on</p>
             <div className="flex gap-4">
               {['push', 'pull', 'delete'].map(ev => (
-                <label key={ev} className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                <label key={ev} className="flex items-center gap-2 text-sm text-zinc-600 cursor-pointer">
                   <input type="checkbox" name={ev} defaultChecked={ev === 'push'} className="rounded" />
                   {ev}
                 </label>
@@ -157,7 +157,7 @@ export function WebhookList({ webhooks: initial }: Props) {
       </Dialog>
 
       <Dialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Delete webhook">
-        <p className="text-sm text-slate-600 mb-5">Delete webhook <span className="font-medium">{deleteItem?.name}</span>?</p>
+        <p className="text-sm text-zinc-600 mb-5">Delete webhook <span className="font-medium">{deleteItem?.name}</span>?</p>
         <div className="flex gap-2 justify-end">
           <Button variant="secondary" size="sm" onClick={() => setDeleteItem(null)}>Cancel</Button>
           <Button variant="danger" size="sm" onClick={handleDelete} disabled={loading}>Delete</Button>

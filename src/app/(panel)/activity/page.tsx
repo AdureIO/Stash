@@ -30,7 +30,7 @@ export default async function ActivityPage() {
         ].map(({ label, value, variant }) => (
           <Card key={label}>
             <div className="px-5 py-4 flex items-center justify-between">
-              <span className="text-sm text-slate-500">{label}</span>
+              <span className="text-sm text-zinc-500">{label}</span>
               <Badge variant={variant}>{value}</Badge>
             </div>
           </Card>
@@ -55,17 +55,17 @@ export default async function ActivityPage() {
             {events.map(e => (
               <Tr key={e.id}>
                 <Td>{actionBadge(e.action)}</Td>
-                <Td className="font-medium text-slate-900">{e.repository}</Td>
+                <Td className="font-medium text-zinc-900">{e.repository}</Td>
                 <Td className="font-mono text-xs">{e.tag || '—'}</Td>
-                <Td className="font-mono text-xs text-slate-400">{shortDigest(e.digest)}</Td>
-                <Td className="text-slate-500">{e.actor || '—'}</Td>
-                <Td className="text-slate-400 text-xs">{e.ip || '—'}</Td>
-                <Td className="text-slate-500">{e.size ? formatBytes(e.size) : '—'}</Td>
-                <Td className="text-xs text-slate-400">{formatDate(e.timestamp)}</Td>
+                <Td className="font-mono text-xs text-zinc-400">{shortDigest(e.digest)}</Td>
+                <Td className="text-zinc-500">{e.actor || '—'}</Td>
+                <Td className="text-zinc-400 text-xs">{e.ip || '—'}</Td>
+                <Td className="text-zinc-500">{e.size ? formatBytes(e.size) : '—'}</Td>
+                <Td className="text-xs text-zinc-400">{formatDate(e.timestamp)}</Td>
               </Tr>
             ))}
             {events.length === 0 && (
-              <Tr><Td className="py-10 text-center text-slate-400" colSpan={8}>No events yet. Events are captured when the registry is used.</Td></Tr>
+              <Tr><Td className="py-10 text-center text-zinc-400" colSpan={8}>No events yet. Events are captured when the registry is used.</Td></Tr>
             )}
           </Tbody>
         </Table>
