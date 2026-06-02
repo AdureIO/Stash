@@ -43,17 +43,13 @@ Depot combines:
 
 ## Quick Start (Docker)
 
-### Build on macOS (Apple Silicon / M-chip)
+### Build
 
 ```bash
-docker buildx build --platform linux/arm64 -t adureio/depot:local --load .
+docker buildx build --platform linux/amd64 -t adureio/depot:local --push .
 ```
 
-Use this on M1/M2/M3 Macs to build an ARM64 image locally.
-
 ```bash
-docker build -t adureio/depot:local .
-
 docker run -d \
   --name depot \
   -p 3000:3000 \
