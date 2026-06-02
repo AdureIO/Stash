@@ -66,6 +66,53 @@ Open `http://localhost:3000`.
 
 On first boot, an admin user is created automatically. If `ADMIN_PASSWORD` is not set, a generated password is printed to container logs.
 
+### Migrate from Docker Registry (`registry:2`) with Compose
+
+If you already run Docker Distribution (`registry:2`) and want to reuse existing images, mount the old registry storage at `/data/registry` in Depot.
+
+`/data/registry` is the registry blob/manifests path used by Depot's embedded registry process.
+
+Example `docker-compose.yml`:
+
+```yaml
+services:
+  depot:
+    image: adureio/depot:local
+    ports:
+      - "3000:3000"
+    environment:
+      PUBLIC_URL: http://localhost:3000
+    volumes:
+      - depot_data:/data
+      - /path/to/old-registry-data:/data/registry
+
+volumes:
+  depot_data:
+```
+
+If your old registry data is in a named Docker volume:
+
+```yaml
+services:
+  depot:
+    image: adureio/depot:local
+    volumes:
+      - depot_data:/data
+      - old_registry_volume:/data/registry
+
+volumes:
+  depot_data:
+  old_registry_volume:
+    external: true
+```
+
+Migration checklist:
+
+- Stop writes to the old registry before cutover.
+- Confirm old storage uses Docker Distribution filesystem layout.
+- Keep `/data` persisted for Depot app data (DB, secrets, auth keys).
+- Start Depot with Compose (`docker compose up -d --build`) and verify pulls from existing repositories.
+
 ## Local Development
 
 1. Install dependencies:
