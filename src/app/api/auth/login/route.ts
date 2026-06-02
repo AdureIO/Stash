@@ -6,8 +6,13 @@ import { checkRateLimit, clearRateLimit } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim()
-      || req.headers.get('x-real-ip')
+    // Prefer x-real-ip (set by trusted reverse proxy to the actual client IP).
+    // Fall back to the rightmost x-forwarded-for entry which is harder to spoof
+    // than the leftmost (client-controlled) entry. In single-proxy deployments
+    // this is the same as the leftmost value, but safer in multi-hop setups.
+    const xff = req.headers.get('x-forwarded-for')
+    const ip = req.headers.get('x-real-ip')?.trim()
+      || (xff ? xff.split(',').at(-1)!.trim() : null)
       || 'unknown'
 
     // Rate limit: 10 attempts per 15 minutes per IP

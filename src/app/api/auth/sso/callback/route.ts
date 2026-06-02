@@ -24,15 +24,21 @@ export async function GET(req: NextRequest) {
   const baseUrl = process.env.PUBLIC_URL || `${req.nextUrl.protocol}//${req.nextUrl.host}`
   const redirectUri = `${baseUrl}/api/auth/sso/callback`
 
-  let email: string, name: string
+  let email: string, name: string, emailVerified: boolean
   try {
     const accessToken = await exchangeCode(provider, code, redirectUri)
     const info = await fetchUserInfo(provider, accessToken)
     email = info.email
     name = info.name
+    emailVerified = info.emailVerified
   } catch (e) {
     console.error('[sso]', e)
     return NextResponse.redirect(new URL('/login?error=auth_failed', req.url))
+  }
+
+  // Reject unverified emails when the provider exposes the flag
+  if (!emailVerified) {
+    return NextResponse.redirect(new URL('/login?error=email_not_verified', req.url))
   }
 
   if (!isDomainAllowed(email, provider.domain_whitelist)) {
@@ -51,7 +57,10 @@ export async function GET(req: NextRequest) {
   db.users.update(user.id, { last_login: new Date().toISOString() })
   logAction(email, 'user.sso_login', 'user', user.id, { provider: provider.name })
 
-  const token = await createSession({ userId: user.id, username: user.username, role: user.role, totpVerified: true })
+  // If user has TOTP enabled, SSO does not satisfy the second factor —
+  // issue a partial session and redirect to TOTP verification
+  const totpVerified = !user.totp_enabled
+  const token = await createSession({ userId: user.id, username: user.username, role: user.role, totpVerified })
   const res = NextResponse.redirect(new URL('/', req.url))
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true, secure: process.env.NODE_ENV === 'production',

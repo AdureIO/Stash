@@ -10,7 +10,13 @@ import { getFeatures } from '@/lib/features'
 import { safePath, buildPackageMeta, writePackageVersion, NPM_ROOT } from '@/lib/npm-registry'
 import bcrypt from 'bcryptjs'
 
-async function authenticate(req: NextRequest) {
+interface AuthResult {
+  user: NonNullable<ReturnType<typeof db.users.findById>>
+  // undefined = password auth (no scope restriction); string = PAT scope
+  tokenScope: string | undefined
+}
+
+async function authenticate(req: NextRequest): Promise<AuthResult | null> {
   const auth = req.headers.get('Authorization') || ''
   if (auth.startsWith('Bearer ')) {
     const raw = auth.slice(7)
@@ -18,7 +24,9 @@ async function authenticate(req: NextRequest) {
     if (!token) return null
     if (token.expires_at && new Date(token.expires_at) < new Date()) return null
     db.tokens.touch(token.id)
-    return db.users.findById(token.user_id) ?? null
+    const user = db.users.findById(token.user_id)
+    if (!user) return null
+    return { user, tokenScope: token.scope }
   }
   if (auth.startsWith('Basic ')) {
     const decoded = Buffer.from(auth.slice(6), 'base64').toString()
@@ -28,9 +36,18 @@ async function authenticate(req: NextRequest) {
     const user = db.users.findByUsername(username)
     if (!user) return null
     const ok = await bcrypt.compare(password, user.password_hash)
-    return ok ? user : null
+    return ok ? { user, tokenScope: undefined } : null
   }
   return null
+}
+
+function scopeAllows(tokenScope: string | undefined, required: 'read' | 'publish' | 'delete'): boolean {
+  if (tokenScope === undefined) return true // password auth — rely on role only
+  if (tokenScope === '*' || tokenScope === 'all') return true
+  if (required === 'read') return tokenScope.includes('read') || tokenScope.includes('npm')
+  if (required === 'publish') return tokenScope.includes('publish') || tokenScope.includes('write') || tokenScope.includes('npm')
+  if (required === 'delete') return tokenScope.includes('delete') || tokenScope.includes('admin')
+  return false
 }
 
 function unauthorized() {
@@ -53,16 +70,17 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   // /-/whoami — requires auth
   if (joined === '-/whoami') {
-    const user = await authenticate(req)
-    if (!user) return unauthorized()
-    return NextResponse.json({ username: user.username })
+    const auth = await authenticate(req)
+    if (!auth) return unauthorized()
+    return NextResponse.json({ username: auth.user.username })
   }
 
   // /@scope/pkg/-/tarball  or  /pkg/-/tarball
   const tarballMatch = joined.match(/^(.+)\/-\/(.+\.tgz)$/)
   if (tarballMatch) {
-    const user = await authenticate(req)
-    if (!user) return unauthorized()
+    const auth = await authenticate(req)
+    if (!auth) return unauthorized()
+    if (!scopeAllows(auth.tokenScope, 'read')) return new NextResponse(JSON.stringify({ error: 'Forbidden: token scope does not allow read' }), { status: 403 })
     const pkgName = tarballMatch[1]
     const filename = tarballMatch[2]
     // Extract version from filename: pkg-1.0.0.tgz
@@ -75,8 +93,9 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 
   // Package metadata: /@scope/pkg or /pkg
-  const user = await authenticate(req)
-  if (!user) return unauthorized()
+  const auth = await authenticate(req)
+  if (!auth) return unauthorized()
+  if (!scopeAllows(auth.tokenScope, 'read')) return new NextResponse(JSON.stringify({ error: 'Forbidden: token scope does not allow read' }), { status: 403 })
   const pkgName = joined
   const meta = buildPackageMeta(pkgName, baseUrl)
   if (!meta) return new NextResponse(JSON.stringify({ error: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } })
@@ -85,14 +104,14 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 export async function PUT(req: NextRequest, { params }: Params) {
   if (!getFeatures().npm) return new NextResponse('Not Found', { status: 404 })
-  const user = await authenticate(req)
-  if (!user) return unauthorized()
-  if (user.role === 'viewer') return new NextResponse(JSON.stringify({ error: 'Forbidden' }), { status: 403 })
+  const authResult = await authenticate(req)
+  if (!authResult) return unauthorized()
+  const { user, tokenScope } = authResult
 
   const { path: segments } = await params
   const joined = segments.join('/')
 
-  // npm login: PUT /-/user/org.couchdb.user:username
+  // npm login: PUT /-/user/org.couchdb.user:username (password-only, not PAT)
   if (joined.startsWith('-/user/')) {
     const body = await req.json().catch(() => ({})) as { name?: string; password?: string }
     const loginUser = db.users.findByUsername(body.name || '')
@@ -102,11 +121,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // Return a PAT as the npm token
     const { generatePat, hashPat: hp } = await import('@/lib/pat')
     const raw = generatePat()
-    db.tokens.create(loginUser.id, 'npm-login', hp(raw), 'npm', undefined)
+    db.tokens.create(loginUser.id, 'npm-login', hp(raw), 'npm:publish', undefined)
     return NextResponse.json({ ok: true, token: raw }, { status: 201 })
   }
 
-  // Publish: PUT /pkgname
+  // Publish: PUT /pkgname — requires publish scope and non-viewer role
+  if (user.role === 'viewer') return new NextResponse(JSON.stringify({ error: 'Forbidden' }), { status: 403 })
+  if (!scopeAllows(tokenScope, 'publish')) return new NextResponse(JSON.stringify({ error: 'Forbidden: token scope does not allow publish' }), { status: 403 })
   const body = await req.json() as {
     name?: string; versions?: Record<string, Record<string, unknown>>
     _attachments?: Record<string, { data: string }>
@@ -129,8 +150,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   if (!getFeatures().npm) return new NextResponse('Not Found', { status: 404 })
-  const user = await authenticate(req)
-  if (!user || user.role !== 'admin') return new NextResponse(JSON.stringify({ error: 'Forbidden' }), { status: 403 })
+  const authResult = await authenticate(req)
+  if (!authResult) return unauthorized()
+  const { user, tokenScope } = authResult
+  if (user.role !== 'admin') return new NextResponse(JSON.stringify({ error: 'Forbidden' }), { status: 403 })
+  if (!scopeAllows(tokenScope, 'delete')) return new NextResponse(JSON.stringify({ error: 'Forbidden: token scope does not allow delete' }), { status: 403 })
 
   const { path: segments } = await params
   const pkgPath = safePath(segments)

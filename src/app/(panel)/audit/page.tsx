@@ -1,9 +1,11 @@
+import { redirect } from 'next/navigation'
 import { Header } from '@/components/layout/header'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, Thead, Th, Tbody, Tr, Td } from '@/components/ui/table'
 import { db } from '@/lib/db'
 import { formatDate } from '@/lib/utils'
+import { requireAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +17,7 @@ const actionColor = (action: string) => {
 }
 
 export default async function AuditPage() {
+  try { await requireAdmin() } catch { redirect('/') }
   const entries = db.audit.findRecent(200)
 
   return (

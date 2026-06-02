@@ -6,6 +6,8 @@ import { logAction } from '@/lib/audit'
 import { getFeatures } from '@/lib/features'
 
 export async function GET() {
+  const session = await requireAdmin().catch(() => null)
+  if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const readonly = db.settings.get('REGISTRY_READONLY') === 'true'
   return NextResponse.json({ readonly })
 }

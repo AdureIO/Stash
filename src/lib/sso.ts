@@ -84,7 +84,9 @@ export async function exchangeCode(
   return data.access_token
 }
 
-export async function fetchUserInfo(provider: SsoProvider, accessToken: string): Promise<{ email: string; name: string }> {
+export async function fetchUserInfo(
+  provider: SsoProvider, accessToken: string
+): Promise<{ email: string; name: string; emailVerified: boolean }> {
   let userInfoUrl = provider.userinfo_url
   if (!userInfoUrl) {
     if (provider.type === 'oidc' && provider.issuer_url) {
@@ -100,21 +102,33 @@ export async function fetchUserInfo(provider: SsoProvider, accessToken: string):
   if (!res.ok) throw new Error(`Userinfo failed: ${res.status}`)
   const data = await res.json() as Record<string, unknown>
 
-  // GitHub: email may be null, need separate call
-  if (provider.type === 'github' && !data.email) {
+  // GitHub: fetch verified primary email explicitly
+  if (provider.type === 'github') {
     const emailRes = await fetch('https://api.github.com/user/emails', {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
     })
     if (emailRes.ok) {
       const emails = await emailRes.json() as { email: string; primary: boolean; verified: boolean }[]
       const primary = emails.find(e => e.primary && e.verified)
-      data.email = primary?.email ?? emails[0]?.email ?? ''
+      if (primary) {
+        data.email = primary.email
+        data.email_verified = true
+      } else {
+        // No verified primary — block login
+        data.email = emails[0]?.email ?? ''
+        data.email_verified = false
+      }
     }
   }
 
   const email = String(data.email || data.mail || '')
   const name = String(data.name || data.login || data.preferred_username || email.split('@')[0])
-  return { email, name }
+
+  // email_verified: honour the claim if present; default true for providers that
+  // don't expose it (Google always verifies, GitLab OIDC sets it explicitly)
+  const emailVerified = data.email_verified !== undefined ? Boolean(data.email_verified) : true
+
+  return { email, name, emailVerified }
 }
 
 export function isDomainAllowed(email: string, domainWhitelist: string | null): boolean {

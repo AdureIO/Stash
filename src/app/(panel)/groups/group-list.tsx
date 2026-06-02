@@ -12,7 +12,7 @@ import type { Group, GroupRule, User } from '@/lib/db'
 
 type GroupWithDetails = Group & { members: Pick<User,'id'|'username'|'role'>[]; rules: GroupRule[] }
 
-interface Props { groups: GroupWithDetails[]; allUsers: User[] }
+interface Props { groups: GroupWithDetails[]; allUsers: Omit<User, 'password_hash'>[] }
 
 export function GroupList({ groups: initial, allUsers }: Props) {
   const [groups, setGroups] = useState(initial)
