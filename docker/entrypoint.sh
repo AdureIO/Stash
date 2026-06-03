@@ -4,8 +4,8 @@ set -e
 DATA=/data
 mkdir -p "$DATA/registry" "$DATA/maven"
 
-# Fix ownership of the data volume so the depot user can write to it
-chown -R depot:depot "$DATA" 2>/dev/null || true
+# Fix ownership of the data volume so the stash user can write to it
+chown -R stash:stash "$DATA" 2>/dev/null || true
 
 # --- Auth keypair ---
 # Both files must exist and belong together. With Swarm >1 replica on one volume,
@@ -19,7 +19,7 @@ ensure_auth_keypair() {
     fi
     waited=$((waited + 1))
     if [ "$waited" -ge 90 ]; then
-      echo "[depot] ERROR: timed out waiting for auth keypair (another task may be generating it)"
+      echo "[stash] ERROR: timed out waiting for auth keypair (another task may be generating it)"
       exit 1
     fi
     sleep 1
@@ -33,16 +33,16 @@ ensure_auth_keypair() {
     return 0
   fi
 
-  echo "[depot] Generating auth keypair..."
+  echo "[stash] Generating auth keypair..."
   rm -f "$DATA/auth.key" "$DATA/auth.crt"
 
   if ! openssl genpkey -algorithm RSA -out "$DATA/auth.key" -pkeyopt rsa_keygen_bits:4096; then
-    echo "[depot] ERROR: openssl failed to create $DATA/auth.key"
+    echo "[stash] ERROR: openssl failed to create $DATA/auth.key"
     exit 1
   fi
   if ! openssl req -new -x509 -key "$DATA/auth.key" \
     -out "$DATA/auth.crt" -days 3650 -subj "/CN=registry-auth"; then
-    echo "[depot] ERROR: openssl failed to create $DATA/auth.crt"
+    echo "[stash] ERROR: openssl failed to create $DATA/auth.crt"
     rm -f "$DATA/auth.key"
     exit 1
   fi
@@ -51,10 +51,10 @@ ensure_auth_keypair() {
   msg="$DATA/.auth-verify.msg"
   sig="$DATA/.auth-verify.sig"
   if ! openssl x509 -in "$DATA/auth.crt" -pubkey -noout > "$pub" \
-    || ! printf 'depot-auth-check' > "$msg" \
+    || ! printf 'stash-auth-check' > "$msg" \
     || ! openssl dgst -sha256 -sign "$DATA/auth.key" -out "$sig" "$msg" \
     || ! openssl dgst -sha256 -verify "$pub" -signature "$sig" "$msg"; then
-    echo "[depot] ERROR: generated auth.key and auth.crt do not verify together"
+    echo "[stash] ERROR: generated auth.key and auth.crt do not verify together"
     rm -f "$DATA/auth.key" "$DATA/auth.crt" "$pub" "$msg" "$sig"
     exit 1
   fi
@@ -62,10 +62,23 @@ ensure_auth_keypair() {
 
   rmdir "$lockdir" 2>/dev/null
   trap - EXIT INT TERM
-  echo "[depot] Auth keypair ready."
+  echo "[stash] Auth keypair ready."
 }
 
 ensure_auth_keypair
+
+# --- Trivy binary + vulnerability DBs (persisted on /data, not baked into the image) ---
+TRIVY_INSTALL_SOURCED=1
+. /app/scripts/trivy-install.sh
+ensure_trivy() {
+  trivy_setup_env
+  if ! trivy_with_lock 1 trivy_bootstrap; then
+    echo "[stash] ERROR: Trivy bootstrap failed"
+    exit 1
+  fi
+  export TRIVY_SKIP_DB_UPDATE="${TRIVY_SKIP_DB_UPDATE:-true}"
+}
+ensure_trivy
 
 # --- Persist secrets to volume so restarts don't kill sessions ---
 SECRETS_FILE="$DATA/.secrets"
@@ -89,7 +102,7 @@ WEBHOOK_SECRET="${WEBHOOK_SECRET:-}"
 REGISTRY_SECRET="${REGISTRY_SECRET:-}"
 
 if [ -z "$TOKEN_SECRET" ]; then
-  echo "[depot] ERROR: TOKEN_SECRET is empty. Remove /data/.secrets and restart, or set TOKEN_SECRET in the environment."
+  echo "[stash] ERROR: TOKEN_SECRET is empty. Remove /data/.secrets and restart, or set TOKEN_SECRET in the environment."
   exit 1
 fi
 
@@ -100,7 +113,7 @@ REGISTRY_AUTH_REALM="${PUBLIC_URL}/api/auth/token"
 
 # --- Write registry config (only if Docker is enabled) ---
 if [ "${ENABLE_DOCKER:-true}" != "true" ]; then
-  echo "[depot] Docker registry disabled — skipping registry config."
+  echo "[stash] Docker registry disabled — skipping registry config."
 else
 cat > "$DATA/registry.yml" <<EOF
 version: 0.1
@@ -145,17 +158,25 @@ fi
 
 # --- Write supervisord env file so Next.js picks up the secrets ---
 # Restricted permissions — secrets should not be world-readable
+# When Docker is enabled, Next.js listens on 3001 and front-proxy owns :3000 for /v2 streaming.
+if [ "${ENABLE_DOCKER:-true}" = "true" ]; then
+  NEXT_LISTEN_PORT=3001
+else
+  NEXT_LISTEN_PORT=3000
+fi
+
 ( umask 077 && cat > /tmp/nextjs.env <<EOF
 NODE_ENV=production
-PORT=3000
+PORT=${NEXT_LISTEN_PORT}
 HOSTNAME=0.0.0.0
+PATH=${PATH}
 DATABASE_URL=/data/db.sqlite
 PUBLIC_URL=${PUBLIC_URL}
 REGISTRY_URL=http://127.0.0.1:5000
 MAVEN_ROOT=/data/maven
 ENABLE_DOCKER=${ENABLE_DOCKER:-true}
 ENABLE_MAVEN=${ENABLE_MAVEN:-true}
-DEPOT_MIGRATED=1
+STASH_MIGRATED=1
 REGISTRY_AUTH_REALM=${REGISTRY_AUTH_REALM}
 TOKEN_SECRET=${TOKEN_SECRET}
 WEBHOOK_SECRET=${WEBHOOK_SECRET}
@@ -164,16 +185,26 @@ AUTH_KEY_PATH=/data/auth.key
 AUTH_CERT_PATH=/data/auth.crt
 ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+DATA=/data
+TRIVY_VERSION=${TRIVY_VERSION:-0.71.0}
+TRIVY_ROOT=${TRIVY_ROOT:-/data/trivy}
+TRIVY_CACHE_DIR=${TRIVY_CACHE_DIR}
+TRIVY_MODULE_DIR=${TRIVY_MODULE_DIR}
+TRIVY_DB_REPOSITORY=${TRIVY_DB_REPOSITORY}
+TRIVY_JAVA_DB_REPOSITORY=${TRIVY_JAVA_DB_REPOSITORY}
+TRIVY_SKIP_DB_UPDATE=${TRIVY_SKIP_DB_UPDATE}
+TRIVY_UPDATE_CRON=${TRIVY_UPDATE_CRON:-15 3 * * *}
+TRIVY_UPDATE_BINARY=${TRIVY_UPDATE_BINARY:-false}
 EOF
 )
-chown depot:depot /tmp/nextjs.env
+chown stash:stash /tmp/nextjs.env
 
 # --- Run DB migrations ---
 DATABASE_URL="$DATA/db.sqlite" \
 ADMIN_USERNAME="${ADMIN_USERNAME:-admin}" \
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}" \
   node /app/scripts/migrate.js
-chown -R depot:depot "$DATA" 2>/dev/null || true
+chown -R stash:stash "$DATA" 2>/dev/null || true
 
 # --- Generate supervisord.conf based on enabled features ---
 cat > /tmp/supervisord.conf <<'EOF'
@@ -186,7 +217,7 @@ pidfile=/data/supervisord.pid
 [program:nextjs]
 command=node /app/server.js
 directory=/app
-user=depot
+user=stash
 autorestart=true
 startretries=5
 envfile=/tmp/nextjs.env
@@ -199,7 +230,7 @@ EOF
 
 # Explicit environment= ensures Next.js sees secrets (envfile alone is unreliable in some setups)
 cat >> /tmp/supervisord.conf <<EOF
-environment=NODE_ENV="production",PORT="3000",HOSTNAME="0.0.0.0",DATABASE_URL="/data/db.sqlite",PUBLIC_URL="${PUBLIC_URL}",REGISTRY_AUTH_REALM="${REGISTRY_AUTH_REALM}",REGISTRY_URL="http://127.0.0.1:5000",TOKEN_SECRET="${TOKEN_SECRET}",WEBHOOK_SECRET="${WEBHOOK_SECRET}",REGISTRY_SECRET="${REGISTRY_SECRET}",AUTH_KEY_PATH="/data/auth.key",AUTH_CERT_PATH="/data/auth.crt",ENABLE_DOCKER="${ENABLE_DOCKER:-true}",ENABLE_MAVEN="${ENABLE_MAVEN:-true}",DEPOT_MIGRATED="1"
+environment=NODE_ENV="production",PORT="${NEXT_LISTEN_PORT}",HOSTNAME="0.0.0.0",PATH="${PATH}",DATA="/data",DATABASE_URL="/data/db.sqlite",PUBLIC_URL="${PUBLIC_URL}",REGISTRY_AUTH_REALM="${REGISTRY_AUTH_REALM}",REGISTRY_URL="http://127.0.0.1:5000",TOKEN_SECRET="${TOKEN_SECRET}",WEBHOOK_SECRET="${WEBHOOK_SECRET}",REGISTRY_SECRET="${REGISTRY_SECRET}",AUTH_KEY_PATH="/data/auth.key",AUTH_CERT_PATH="/data/auth.crt",ENABLE_DOCKER="${ENABLE_DOCKER:-true}",ENABLE_MAVEN="${ENABLE_MAVEN:-true}",STASH_MIGRATED="1",TRIVY_VERSION="${TRIVY_VERSION:-0.71.0}",TRIVY_ROOT="${TRIVY_ROOT:-/data/trivy}",TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR}",TRIVY_MODULE_DIR="${TRIVY_MODULE_DIR}",TRIVY_DB_REPOSITORY="${TRIVY_DB_REPOSITORY}",TRIVY_JAVA_DB_REPOSITORY="${TRIVY_JAVA_DB_REPOSITORY}",TRIVY_SKIP_DB_UPDATE="${TRIVY_SKIP_DB_UPDATE}",TRIVY_UPDATE_BINARY="${TRIVY_UPDATE_BINARY:-false}"
 EOF
 
 cat >> /tmp/supervisord.conf <<'EOF'
@@ -207,7 +238,7 @@ cat >> /tmp/supervisord.conf <<'EOF'
 [program:cron]
 command=node /app/scripts/cron.js
 directory=/app
-user=depot
+user=stash
 autorestart=true
 startretries=5
 envfile=/tmp/nextjs.env
@@ -223,7 +254,7 @@ if [ "${ENABLE_DOCKER:-true}" = "true" ]; then
 
 [program:registry]
 command=/usr/local/bin/registry serve /data/registry.yml
-user=depot
+user=stash
 autorestart=true
 startretries=5
 stdout_logfile=/dev/fd/1
@@ -231,14 +262,31 @@ stdout_logfile_maxbytes=0
 stderr_logfile=/dev/fd/2
 stderr_logfile_maxbytes=0
 priority=10
+
+[program:front-proxy]
+command=node /app/scripts/front-proxy.js
+directory=/app
+user=stash
+autorestart=true
+startretries=5
+envfile=/tmp/nextjs.env
+stdout_logfile=/dev/fd/1
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/fd/2
+stderr_logfile_maxbytes=0
+priority=25
+EOF
+
+  cat >> /tmp/supervisord.conf <<EOF
+environment=PORT="3000",HOSTNAME="0.0.0.0",NEXT_UPSTREAM="http://127.0.0.1:${NEXT_LISTEN_PORT}",REGISTRY_URL="http://127.0.0.1:5000",PUBLIC_URL="${PUBLIC_URL}",REGISTRY_AUTH_REALM="${REGISTRY_AUTH_REALM}"
 EOF
 fi
 
-# Ensure runtime-generated files under /data are owned by depot
-chown -R depot:depot "$DATA" 2>/dev/null || true
+# Ensure runtime-generated files under /data are owned by stash
+chown -R stash:stash "$DATA" 2>/dev/null || true
 
-echo "[depot] Docker token realm: ${REGISTRY_AUTH_REALM}"
-echo "[depot] Starting services (docker=${ENABLE_DOCKER:-true} maven=${ENABLE_MAVEN:-true})..."
+echo "[stash] Docker token realm: ${REGISTRY_AUTH_REALM}"
+echo "[stash] Starting services (docker=${ENABLE_DOCKER:-true} maven=${ENABLE_MAVEN:-true})..."
 # supervisord must run as root so it can spawn dispatchers (/tmp is often noexec in Swarm).
-# Each program drops to depot via user= in supervisord.conf.
+# Each program drops to stash via user= in supervisord.conf.
 exec supervisord -c /tmp/supervisord.conf

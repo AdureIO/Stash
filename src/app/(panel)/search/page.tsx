@@ -1,11 +1,5 @@
-import { SearchPanel } from './search-panel'
-import { Header } from '@/components/layout/header'
+import { redirect } from "next/navigation";
 
 export default function SearchPage() {
-  return (
-    <div>
-      <Header title="Search" subtitle="Search repositories, tags, and events" />
-      <SearchPanel />
-    </div>
-  )
+	redirect("/");
 }

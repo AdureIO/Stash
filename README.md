@@ -1,15 +1,15 @@
-# Depot
+# Stash
 
 Self-hosted Docker, Maven, and NPM registry admin panel built with Next.js.
 
-Depot combines:
+Stash combines:
 
 - A web admin UI for users, groups, policies, tokens, cleanup, and audit data.
 - A Docker Registry v2-compatible endpoint (`/v2/*`) with token auth.
 - Maven package endpoints (`/api/maven/*`).
 - NPM registry endpoints (`/api/npm/*`).
 
-## Why Depot
+## Why Stash
 
 - Run your own package infrastructure on one URL.
 - Manage users and access rules from a single panel.
@@ -46,16 +46,16 @@ Depot combines:
 ### Build
 
 ```bash
-docker buildx build --platform linux/amd64 -t adureio/depot:local --push .
+docker buildx build --platform linux/amd64 -t adureio/stash:local --push .
 ```
 
 ```bash
 docker run -d \
-  --name depot \
+  --name stash \
   -p 3000:3000 \
-  -v depot_data:/data \
+  -v stash_data:/data \
   -e PUBLIC_URL=http://localhost:3000 \
-  adureio/depot:local
+  adureio/stash:local
 ```
 
 Open `http://localhost:3000`.
@@ -64,40 +64,40 @@ On first boot, an admin user is created automatically. If `ADMIN_PASSWORD` is no
 
 ### Migrate from Docker Registry (`registry:2`) with Compose
 
-If you already run Docker Distribution (`registry:2`) and want to reuse existing images, mount the old registry storage at `/data/registry` in Depot.
+If you already run Docker Distribution (`registry:2`) and want to reuse existing images, mount the old registry storage at `/data/registry` in Stash.
 
-`/data/registry` is the registry blob/manifests path used by Depot's embedded registry process.
+`/data/registry` is the registry blob/manifests path used by Stash's embedded registry process.
 
 Example `docker-compose.yml`:
 
 ```yaml
 services:
-    depot:
-        image: adureio/depot:local
+    stash:
+        image: adureio/stash:local
         ports:
             - "3000:3000"
         environment:
             PUBLIC_URL: http://localhost:3000
         volumes:
-            - depot_data:/data
+            - stash_data:/data
             - /path/to/old-registry-data:/data/registry
 
 volumes:
-    depot_data:
+    stash_data:
 ```
 
 If your old registry data is in a named Docker volume:
 
 ```yaml
 services:
-    depot:
-        image: adureio/depot:local
+    stash:
+        image: adureio/stash:local
         volumes:
-            - depot_data:/data
+            - stash_data:/data
             - old_registry_volume:/data/registry
 
 volumes:
-    depot_data:
+    stash_data:
     old_registry_volume:
         external: true
 ```
@@ -106,8 +106,8 @@ Migration checklist:
 
 - Stop writes to the old registry before cutover.
 - Confirm old storage uses Docker Distribution filesystem layout.
-- Keep `/data` persisted for Depot app data (DB, secrets, auth keys).
-- Start Depot with Compose (`docker compose up -d --build`) and verify pulls from existing repositories.
+- Keep `/data` persisted for Stash app data (DB, secrets, auth keys).
+- Start Stash with Compose (`docker compose up -d --build`) and verify pulls from existing repositories.
 
 ## Local Development
 
@@ -180,12 +180,12 @@ In container deployments, secrets and auth key material are generated and persis
 
 ## Docker CLI Login
 
-Use a **Depot user** (from the admin panel) or a **personal access token** — not Docker Hub credentials.
+Use a **Stash user** (from the admin panel) or a **personal access token** — not Docker Hub credentials.
 
 ```bash
 docker login hub.example.com -u admin -p '<password>'
-# or with a PAT (create in Depot → Tokens):
-docker login hub.example.com -u token -p 'depot_pat_...'
+# or with a PAT (create in Stash → Tokens):
+docker login hub.example.com -u token -p 'ra_...'
 ```
 
 Required environment on the server:
@@ -213,7 +213,7 @@ Remove `ADMIN_RESET_PASSWORD` after one successful restart.
 
 After changing `PUBLIC_URL`, redeploy/restart the container so the registry reloads config. On startup, logs show:
 
-`[depot] Docker token realm: https://hub.example.com/api/auth/token`
+`[stash] Docker token realm: https://hub.example.com/api/auth/token`
 
 ## Registry/API Surfaces
 
@@ -234,6 +234,58 @@ Persist `/data` to keep:
 - Persisted runtime secrets.
 
 Without persistent `/data`, credentials and secrets can rotate unexpectedly between restarts.
+
+## Reverse proxy (Docker push)
+
+Stash listens on **port 3000** in the container (front-proxy when Docker is enabled). Point Traefik (or nginx) at that port, not the internal Next.js port.
+
+Set `PUBLIC_URL` to the exact URL clients use (e.g. `https://hub.adure.io`) so the Docker auth `realm` and upload `Location` headers match Traefik’s hostname.
+
+### Traefik
+
+Layer uploads can run for many minutes. If entrypoint or transport timeouts are too low, `docker push` fails mid-upload (often **499**, **408**, or **502** depending on the proxy).
+
+**Static config** — relax timeouts on the HTTPS entrypoint (adjust names to match your setup):
+
+```yaml
+entryPoints:
+    websecure:
+        address: ":443"
+        transport:
+            respondingTimeouts:
+                readTimeout: 0 # 0 = no read timeout (Traefik v2/v3)
+                writeTimeout: 0
+                idleTimeout: 1800s # 30m idle during large pushes
+```
+
+**Docker / Compose labels** — route to Stash on port 3000; avoid a buffering middleware on this router (buffering caps body size and breaks registry uploads):
+
+```yaml
+labels:
+    - traefik.enable=true
+    - traefik.http.routers.stash.rule=Host(`hub.example.com`)
+    - traefik.http.routers.stash.entrypoints=websecure
+    - traefik.http.routers.stash.tls=true
+    - traefik.http.services.stash.loadbalancer.server.port=3000
+    # optional: stream registry responses instead of buffering
+    - traefik.http.services.stash.loadbalancer.responseForwarding.flushInterval=100ms
+```
+
+If you use a **ServersTransport** for long backend reads, raise `forwardingTimeouts.idleConnTimeout` (e.g. `1800s`) and avoid a short `responseHeaderTimeout`.
+
+Traefik forwards `X-Forwarded-Proto` / `Host` by default; Stash uses those when rewriting registry `Location` headers if needed.
+
+### nginx
+
+```nginx
+location /v2/ {
+    proxy_pass http://stash:3000;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    client_max_body_size 0;
+    proxy_request_buffering off;
+}
+```
 
 ## Security Notes
 

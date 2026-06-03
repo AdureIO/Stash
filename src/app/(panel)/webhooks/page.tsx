@@ -2,12 +2,12 @@ import { redirect } from 'next/navigation'
 import { WebhookList } from './webhook-list'
 import { Header } from '@/components/layout/header'
 import { db } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireSuperAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export default async function WebhooksPage() {
-  try { await requireAdmin() } catch { redirect('/') }
+  try { await requireSuperAdmin() } catch { redirect('/') }
   const webhooks = db.webhooks.findAll()
   return (
     <div>

@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Shield, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { StashLogo } from "@/components/brand/stash-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api";
@@ -74,10 +75,8 @@ export function LoginForm({ ssoProviders }: Props) {
 		<div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4">
 			<div className="w-full max-w-sm">
 				<div className="flex flex-col items-center mb-8">
-					<div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4">
-						<Shield size={20} className="text-white" />
-					</div>
-					<h1 className="text-xl font-semibold text-white">Depot</h1>
+					<StashLogo size="lg" className="mb-4" />
+					<h1 className="text-xl font-semibold text-white">Stash</h1>
 					<p className="text-zinc-400 text-sm mt-1">Sign in to manage your registry</p>
 				</div>
 

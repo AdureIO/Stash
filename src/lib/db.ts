@@ -1,6 +1,8 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "fs";
 import path from "path";
+import { EVENTS_PUBLIC_SQL } from "./registry-events";
+import { webhookMatchesRepo } from "./webhook-match";
 let _db: Database.Database | null = null;
 
 function isPostgres(): boolean {
@@ -23,13 +25,15 @@ export { isPostgres };
 
 // ---- Types ----
 
-export type UserRole = "admin" | "push" | "viewer";
+export type UserRole = "superadmin" | "admin" | "push" | "viewer";
+export type DefaultAccess = "deny" | "allow";
 
 export interface User {
 	id: number;
 	username: string;
 	password_hash: string;
 	role: UserRole;
+	default_access: DefaultAccess;
 	created_at: string;
 	last_login: string | null;
 	totp_secret: string | null;
@@ -112,6 +116,7 @@ export interface SsoProvider {
 	userinfo_url: string | null;
 	domain_whitelist: string | null;
 	default_role: string;
+	default_group_id: number | null;
 	active: number;
 	created_at: string;
 }
@@ -173,15 +178,24 @@ export const db = {
 		findById: (id: number) => getDb().prepare("SELECT * FROM users WHERE id = ?").get(id) as User | undefined,
 		findByUsername: (username: string) =>
 			getDb().prepare("SELECT * FROM users WHERE username = ?").get(username) as User | undefined,
-		create: (username: string, passwordHash: string, role: UserRole) =>
+		create: (username: string, passwordHash: string, role: UserRole, defaultAccess: DefaultAccess = "deny") =>
 			getDb()
-				.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)")
-				.run(username, passwordHash, role),
+				.prepare("INSERT INTO users (username, password_hash, role, default_access) VALUES (?, ?, ?, ?)")
+				.run(username, passwordHash, role, defaultAccess),
 		update: (
 			id: number,
-			fields: Partial<Pick<User, "password_hash" | "role" | "last_login" | "totp_secret" | "totp_enabled">>,
+			fields: Partial<
+				Pick<User, "password_hash" | "role" | "last_login" | "totp_secret" | "totp_enabled" | "default_access">
+			>,
 		) => {
-			const ALLOWED = new Set(["password_hash", "role", "last_login", "totp_secret", "totp_enabled"]);
+			const ALLOWED = new Set([
+				"password_hash",
+				"role",
+				"last_login",
+				"totp_secret",
+				"totp_enabled",
+				"default_access",
+			]);
 			const safe = Object.fromEntries(Object.entries(fields).filter(([k]) => ALLOWED.has(k)));
 			if (!Object.keys(safe).length) return;
 			const sets = Object.keys(safe)
@@ -209,15 +223,57 @@ export const db = {
 	// Events
 	events: {
 		findRecent: (limit = 50) =>
-			getDb().prepare("SELECT * FROM events ORDER BY timestamp DESC LIMIT ?").all(limit) as Event[],
+			getDb()
+				.prepare(`SELECT * FROM events WHERE ${EVENTS_PUBLIC_SQL} ORDER BY timestamp DESC LIMIT ?`)
+				.all(limit) as Event[],
 		findByRepo: (repository: string, limit = 50) =>
 			getDb()
-				.prepare("SELECT * FROM events WHERE repository = ? ORDER BY timestamp DESC LIMIT ?")
+				.prepare(
+					`SELECT * FROM events WHERE repository = ? AND ${EVENTS_PUBLIC_SQL} ORDER BY timestamp DESC LIMIT ?`,
+				)
 				.all(repository, limit) as Event[],
+		statsByRepo: (repository: string) =>
+			getDb()
+				.prepare(
+					`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN action = 'push' THEN 1 ELSE 0 END) as pushes,
+        SUM(CASE WHEN action = 'pull' THEN 1 ELSE 0 END) as pulls,
+        SUM(CASE WHEN action = 'delete' THEN 1 ELSE 0 END) as deletes
+      FROM events
+      WHERE repository = ? AND ${EVENTS_PUBLIC_SQL}
+    `,
+				)
+				.get(repository) as { total: number; pushes: number; pulls: number; deletes: number },
+		last30DaysByRepo: (repository: string) =>
+			getDb()
+				.prepare(
+					`
+      SELECT date(timestamp) as day, COUNT(*) as count
+      FROM events
+      WHERE repository = ? AND timestamp >= date('now', '-30 days') AND ${EVENTS_PUBLIC_SQL}
+      GROUP BY day
+      ORDER BY day ASC
+    `,
+				)
+				.all(repository) as { day: string; count: number }[],
+		last30DaysByActionForRepo: (repository: string) =>
+			getDb()
+				.prepare(
+					`
+      SELECT date(timestamp) as day, action, COUNT(*) as count
+      FROM events
+      WHERE repository = ? AND timestamp >= date('now', '-30 days') AND ${EVENTS_PUBLIC_SQL}
+      GROUP BY day, action
+      ORDER BY day ASC
+    `,
+				)
+				.all(repository) as { day: string; action: string; count: number }[],
 		search: (q: string, limit = 100) =>
 			getDb()
 				.prepare(
-					`SELECT * FROM events WHERE repository LIKE ? OR actor LIKE ? OR tag LIKE ? ORDER BY timestamp DESC LIMIT ?`,
+					`SELECT * FROM events WHERE ${EVENTS_PUBLIC_SQL} AND (repository LIKE ? OR actor LIKE ? OR tag LIKE ?) ORDER BY timestamp DESC LIMIT ?`,
 				)
 				.all(`%${q}%`, `%${q}%`, `%${q}%`, limit) as Event[],
 		insert: (e: Omit<Event, "id">) =>
@@ -236,6 +292,7 @@ export const db = {
         SUM(CASE WHEN action = 'pull' THEN 1 ELSE 0 END) as pulls,
         SUM(CASE WHEN action = 'delete' THEN 1 ELSE 0 END) as deletes
       FROM events
+      WHERE ${EVENTS_PUBLIC_SQL}
     `,
 				)
 				.get() as { total: number; pushes: number; pulls: number; deletes: number },
@@ -245,12 +302,37 @@ export const db = {
 					`
       SELECT date(timestamp) as day, COUNT(*) as count
       FROM events
-      WHERE timestamp >= date('now', '-30 days')
+      WHERE timestamp >= date('now', '-30 days') AND ${EVENTS_PUBLIC_SQL}
       GROUP BY day
       ORDER BY day ASC
     `,
 				)
 				.all() as { day: string; count: number }[],
+		last30DaysByAction: () =>
+			getDb()
+				.prepare(
+					`
+      SELECT date(timestamp) as day, action, COUNT(*) as count
+      FROM events
+      WHERE timestamp >= date('now', '-30 days') AND ${EVENTS_PUBLIC_SQL}
+      GROUP BY day, action
+      ORDER BY day ASC
+    `,
+				)
+				.all() as { day: string; action: string; count: number }[],
+		topRepositories: (limit = 8) =>
+			getDb()
+				.prepare(
+					`
+      SELECT repository, COUNT(*) as events
+      FROM events
+      WHERE timestamp >= date('now', '-30 days') AND ${EVENTS_PUBLIC_SQL}
+      GROUP BY repository
+      ORDER BY events DESC
+      LIMIT ?
+    `,
+				)
+				.all(limit) as { repository: string; events: number }[],
 	},
 
 	// Webhooks
@@ -287,6 +369,10 @@ export const db = {
 				.run(...Object.values(safe), id);
 		},
 		delete: (id: number) => getDb().prepare("DELETE FROM webhook_targets WHERE id = ?").run(id),
+		findForRepo: (repo: string) =>
+			(getDb().prepare("SELECT * FROM webhook_targets ORDER BY created_at DESC").all() as WebhookTarget[]).filter(
+				(w) => webhookMatchesRepo(w.repository_pattern, repo),
+			),
 	},
 
 	// Cleanup rules
@@ -398,6 +484,28 @@ export const db = {
 				.run(groupId, userId),
 		removeMember: (groupId: number, userId: number) =>
 			getDb().prepare("DELETE FROM group_members WHERE group_id = ? AND user_id = ?").run(groupId, userId),
+		setUserMemberships: (userId: number, groupIds: number[]) => {
+			const database = getDb();
+			const current = database.prepare("SELECT group_id FROM group_members WHERE user_id = ?").all(userId) as {
+				group_id: number;
+			}[];
+			const currentIds = new Set(current.map((r) => r.group_id));
+			const targetIds = new Set(groupIds);
+			for (const groupId of targetIds) {
+				if (!currentIds.has(groupId)) {
+					database
+						.prepare("INSERT OR IGNORE INTO group_members (group_id, user_id) VALUES (?, ?)")
+						.run(groupId, userId);
+				}
+			}
+			for (const groupId of currentIds) {
+				if (!targetIds.has(groupId)) {
+					database
+						.prepare("DELETE FROM group_members WHERE group_id = ? AND user_id = ?")
+						.run(groupId, userId);
+				}
+			}
+		},
 		rules: (groupId: number) =>
 			getDb()
 				.prepare("SELECT * FROM group_rules WHERE group_id = ? ORDER BY created_at")
@@ -407,6 +515,38 @@ export const db = {
 				.prepare("INSERT INTO group_rules (group_id, repository, actions) VALUES (?, ?, ?)")
 				.run(groupId, repository, actions),
 		deleteRule: (ruleId: number) => getDb().prepare("DELETE FROM group_rules WHERE id = ?").run(ruleId),
+		syncRules: (groupId: number, rules: { repository: string; actions: string }[]) => {
+			const database = getDb();
+			database.prepare("DELETE FROM group_rules WHERE group_id = ?").run(groupId);
+			const insert = database.prepare("INSERT INTO group_rules (group_id, repository, actions) VALUES (?, ?, ?)");
+			for (const rule of rules) {
+				if (rule.repository?.trim()) {
+					insert.run(groupId, rule.repository.trim(), rule.actions || "pull");
+				}
+			}
+		},
+		setGroupMembers: (groupId: number, userIds: number[]) => {
+			const database = getDb();
+			const current = database.prepare("SELECT user_id FROM group_members WHERE group_id = ?").all(groupId) as {
+				user_id: number;
+			}[];
+			const currentIds = new Set(current.map((r) => r.user_id));
+			const targetIds = new Set(userIds);
+			for (const userId of targetIds) {
+				if (!currentIds.has(userId)) {
+					database
+						.prepare("INSERT OR IGNORE INTO group_members (group_id, user_id) VALUES (?, ?)")
+						.run(groupId, userId);
+				}
+			}
+			for (const userId of currentIds) {
+				if (!targetIds.has(userId)) {
+					database
+						.prepare("DELETE FROM group_members WHERE group_id = ? AND user_id = ?")
+						.run(groupId, userId);
+				}
+			}
+		},
 		allRulesForUser: (userId: number) =>
 			getDb()
 				.prepare(
@@ -431,6 +571,29 @@ export const db = {
 			getDb()
 				.prepare("SELECT * FROM scan_results WHERE repository = ? AND tag = ? ORDER BY scanned_at DESC LIMIT 1")
 				.get(repo, tag) as ScanResult | undefined,
+		findByRepository: (repo: string, limit = 20) =>
+			getDb()
+				.prepare(
+					`SELECT id, repository, tag, digest, scanned_at, status, critical, high, medium, low
+         FROM scan_results WHERE repository = ? ORDER BY scanned_at DESC LIMIT ?`,
+				)
+				.all(repo, limit) as Omit<ScanResult, "raw_json">[],
+		recent: (limit = 8) =>
+			getDb()
+				.prepare(
+					`SELECT id, repository, tag, digest, scanned_at, status, critical, high, medium, low
+         FROM scan_results ORDER BY scanned_at DESC LIMIT ?`,
+				)
+				.all(limit) as Omit<ScanResult, "raw_json">[],
+		vulnSummary: () =>
+			getDb()
+				.prepare(
+					`SELECT
+          COUNT(*) as total,
+          SUM(CASE WHEN critical > 0 OR high > 0 THEN 1 ELSE 0 END) as with_issues
+         FROM scan_results WHERE status = 'ok'`,
+				)
+				.get() as { total: number; with_issues: number },
 		upsert: (r: Omit<ScanResult, "id">) =>
 			getDb()
 				.prepare(
@@ -505,7 +668,7 @@ export const db = {
 		create: (p: Omit<SsoProvider, "id" | "created_at">) =>
 			getDb()
 				.prepare(
-					"INSERT INTO sso_providers (name, type, client_id, client_secret, issuer_url, authorization_url, token_url, userinfo_url, domain_whitelist, default_role, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					"INSERT INTO sso_providers (name, type, client_id, client_secret, issuer_url, authorization_url, token_url, userinfo_url, domain_whitelist, default_role, default_group_id, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				)
 				.run(
 					p.name,
@@ -518,6 +681,7 @@ export const db = {
 					p.userinfo_url,
 					p.domain_whitelist,
 					p.default_role,
+					p.default_group_id,
 					p.active,
 				),
 		update: (id: number, fields: Partial<SsoProvider>) => {
@@ -532,6 +696,7 @@ export const db = {
 				"userinfo_url",
 				"domain_whitelist",
 				"default_role",
+				"default_group_id",
 				"active",
 			]);
 			const safe = Object.fromEntries(Object.entries(fields).filter(([k]) => ALLOWED.has(k)));

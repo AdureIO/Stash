@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
 	serverExternalPackages: ["better-sqlite3", "bcryptjs"],
 	// Docker Engine calls /v2/ — default 308 to /v2 drops the Authorization header on redirect
 	skipTrailingSlashRedirect: true,
+	// Local dev without front-proxy: raise limit so /v2 route handler can stream layers.
+	experimental: {
+		proxyClientMaxBodySize: "10gb",
+	},
 
 	async headers() {
 		return [

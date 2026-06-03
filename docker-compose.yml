@@ -1,10 +1,10 @@
 services:
-    depot:
+    stash:
         build:
             context: .
             dockerfile: Dockerfile
-        image: adureio/depot:local
-        container_name: depot
+        image: adureio/stash:local
+        container_name: stash
         restart: unless-stopped
         ports:
             - "3000:3000"
@@ -18,7 +18,7 @@ services:
             WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
             REGISTRY_SECRET: ${REGISTRY_SECRET:-}
         volumes:
-            - depot_data:/data
+            - stash_data:/data
 
 volumes:
-    depot_data:
+    stash_data:

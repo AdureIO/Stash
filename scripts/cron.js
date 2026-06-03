@@ -27,4 +27,27 @@ cron.schedule("30 * * * *", async () => {
 	}
 });
 
+// Refresh Trivy vuln/Java DBs daily; re-download binary when TRIVY_VERSION changes
+const trivyUpdateCron = process.env.TRIVY_UPDATE_CRON || "15 3 * * *";
+if (trivyUpdateCron.toLowerCase() !== "off") {
+	cron.schedule(trivyUpdateCron, async () => {
+		console.log("[cron] Running scheduled Trivy update...");
+		try {
+			const res = await fetch(`${base}/api/admin/trivy-update-cron`, {
+				method: "POST",
+				headers,
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({}));
+				throw new Error(body.error || `status ${res.status}`);
+			}
+			const body = await res.json();
+			console.log(`[cron] Trivy update done — ${body.message ?? "ok"}`);
+		} catch (e) {
+			console.error("[cron] Trivy update failed:", e.message || e);
+		}
+	});
+	console.log(`[cron] Trivy update scheduled (${trivyUpdateCron})`);
+}
+
 console.log("[cron] Scheduled jobs registered");

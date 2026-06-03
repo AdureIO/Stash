@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db, type User } from "./db";
 import { hashPat, PAT_PREFIX } from "./pat";
 import bcrypt from "bcryptjs";
+import { allowedActionsForResource, dockerResourceKeys, type RegistryAction } from "./access-control";
 
 const ISSUER = "registry-admin";
 const SERVICE = "docker-registry";
@@ -45,52 +46,25 @@ function parseScope(scope: string): AccessEntry | null {
 	};
 }
 
-function repoMatches(pattern: string, name: string): boolean {
-	if (pattern === "*") return true;
-	if (pattern === name) return true;
-	// Wildcard: org/* or org/team/*
-	if (pattern.endsWith("/*")) return name.startsWith(pattern.slice(0, -2) + "/");
-	// Deep wildcard: org/**
-	if (pattern.endsWith("/**")) return name.startsWith(pattern.slice(0, -3) + "/");
-	return false;
-}
-
 const DEFAULT_LOGIN_SCOPE: AccessEntry[] = [{ type: "registry", name: "catalog", actions: ["*"] }];
 
 function authorizeAccess(user: User, requested: AccessEntry[], patScope?: string): AccessEntry[] {
 	const scopes = requested.length > 0 ? requested : DEFAULT_LOGIN_SCOPE;
 
-	// Admins get full requested scopes (including catalog:* for docker login)
-	if (user.role === "admin") return scopes;
+	if (user.role === "superadmin") return scopes;
 
-	const userRules = db.rules.findByUser(user.id);
-	const groupRules = db.groups.allRulesForUser(user.id);
-	const allRules = [...userRules, ...groupRules];
 	const patActions = patScope ? new Set(patScope.split(",").map((s) => s.trim())) : null;
 
 	return scopes.map((entry) => {
-		// Docker login and /v2/_catalog use registry:catalog:* — all roles need this after auth
+		// Docker login and /v2/_catalog use registry:catalog:* — required for docker login after auth
 		if (entry.type === "registry" && entry.name === "catalog") {
 			return { ...entry, actions: ["*"] };
 		}
 
 		if (entry.type !== "repository") return { ...entry, actions: [] };
 
-		const allowedActions = new Set<string>();
-		if (user.role === "push") {
-			allowedActions.add("pull");
-			allowedActions.add("push");
-		} else if (user.role === "viewer") {
-			allowedActions.add("pull");
-		}
-
-		for (const rule of allRules) {
-			if (repoMatches(rule.repository, entry.name)) {
-				rule.actions.split(",").forEach((a) => allowedActions.add(a.trim()));
-			}
-		}
-
-		let finalActions = entry.actions.filter((a) => allowedActions.has(a));
+		const allowed = allowedActionsForResource(user, dockerResourceKeys(entry.name));
+		let finalActions = entry.actions.filter((a) => allowed.has(a as RegistryAction));
 		if (patActions) finalActions = finalActions.filter((a) => patActions.has(a) || patActions.has("*"));
 
 		return { ...entry, actions: finalActions };
@@ -152,4 +126,37 @@ export async function issueToken(req: TokenRequest): Promise<TokenResponse | nul
 
 	db.users.update(user.id, { last_login: now.toISOString() });
 	return { token, expires_in: TOKEN_EXPIRY, issued_at: now.toISOString() };
+}
+
+/** Parse a single Docker registry scope string (e.g. `repository:foo/bar:pull`). */
+export function scopesToAccess(scope: string): AccessEntry[] {
+	const entry = parseScope(scope);
+	return entry ? [entry] : [];
+}
+
+/** Issue a registry JWT for server-side UI/cron calls (no user session). */
+export async function issueInternalRegistryToken(access: AccessEntry[]): Promise<string> {
+	const fullAccess: AccessEntry[] = [{ type: "registry", name: "catalog", actions: ["*"] }];
+	for (const entry of access) {
+		if (entry.type === "repository") {
+			fullAccess.push({
+				type: "repository",
+				name: entry.name,
+				actions: ["pull", "push", "delete"],
+			});
+		} else {
+			fullAccess.push(entry);
+		}
+	}
+	const privateKey = getPrivateKey();
+	const now = new Date();
+	return new SignJWT({ access: fullAccess, jti: uuidv4() })
+		.setProtectedHeader({ alg: "RS256", x5c: getSigningCertX5c() })
+		.setIssuer(ISSUER)
+		.setSubject("stash-internal")
+		.setAudience(SERVICE)
+		.setIssuedAt(now)
+		.setNotBefore(now)
+		.setExpirationTime(`${TOKEN_EXPIRY}s`)
+		.sign(privateKey);
 }

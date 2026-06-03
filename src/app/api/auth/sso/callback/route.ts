@@ -4,6 +4,7 @@ import { exchangeCode, fetchUserInfo, isDomainAllowed } from "@/lib/sso";
 import { createSession, SESSION_COOKIE } from "@/lib/auth";
 import { SESSION_DURATION, sessionCookieOptions } from "@/lib/session";
 import { logAction } from "@/lib/audit";
+import { applySsoGroupMembership } from "@/lib/sso-groups";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 
@@ -54,6 +55,8 @@ export async function GET(req: NextRequest) {
 		user = db.users.findByUsername(email)!;
 		logAction(email, "user.sso_create", "user", user.id, { provider: provider.name, name });
 	}
+
+	applySsoGroupMembership(user.id, provider);
 
 	db.users.update(user.id, { last_login: new Date().toISOString() });
 	logAction(email, "user.sso_login", "user", user.id, { provider: provider.name });

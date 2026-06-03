@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
 	"/v2",
 	"/api/auth/sso",
 	"/api/npm",
+	"/api/maven",
 	"/api/health",
 ];
 
@@ -16,7 +17,11 @@ export async function middleware(req: NextRequest) {
 	const { pathname } = req.nextUrl;
 
 	if (req.headers.get("x-internal") === "cron") {
-		if (pathname.startsWith("/api/admin/storage") || pathname.startsWith("/api/admin/cleanup-cron")) {
+		if (
+			pathname.startsWith("/api/admin/storage") ||
+			pathname.startsWith("/api/admin/cleanup-cron") ||
+			pathname.startsWith("/api/admin/trivy-update-cron")
+		) {
 			return NextResponse.next();
 		}
 	}
@@ -50,5 +55,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-	matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+	// Skip /v2 — Docker blob uploads must not pass through middleware body buffering.
+	matcher: ["/((?!_next/static|_next/image|favicon.ico|v2).*)"],
 };

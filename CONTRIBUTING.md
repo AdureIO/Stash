@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to Depot.
+Thanks for contributing to Stash.
 
 ## Policy
 

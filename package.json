@@ -1,15 +1,16 @@
 {
-	"name": "depot",
+	"name": "stash",
 	"version": "0.1.0",
 	"description": "Self-hosted Docker, Maven & NPM registry admin panel",
 	"license": "MIT",
 	"author": "Adure",
-	"homepage": "https://github.com/adure/depot",
+	"homepage": "https://github.com/adure/stash",
 	"scripts": {
 		"dev": "next dev --turbopack",
 		"build": "next build",
 		"start": "node server.js",
-		"migrate": "node scripts/migrate.js"
+		"migrate": "node scripts/migrate.js",
+		"verify:maven": "node --experimental-strip-types scripts/verify-maven.js"
 	},
 	"dependencies": {
 		"@types/pg": "^8.20.0",

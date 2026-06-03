@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth'
+import { requireSuperAdmin } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 interface Params { params: Promise<{ id: string }> }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  try { await requireAdmin() } catch { return NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  try { await requireSuperAdmin() } catch { return NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   const { id } = await params
   const body = await req.json()
   db.webhooks.update(Number(id), body)
@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
-  try { await requireAdmin() } catch { return NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  try { await requireSuperAdmin() } catch { return NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   const { id } = await params
   db.webhooks.delete(Number(id))
   return NextResponse.json({ ok: true })

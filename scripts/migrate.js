@@ -185,7 +185,16 @@ function addCol(table, col, def) {
 }
 addCol("users", "totp_secret", "TEXT");
 addCol("users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
+addCol("users", "default_access", "TEXT NOT NULL DEFAULT 'deny'");
+
+// One-time: legacy global admin → super-admin (new "admin" is space-scoped)
+const rolesMigrated = db.prepare("SELECT value FROM settings WHERE key = 'roles_v2'").get();
+if (!rolesMigrated) {
+	db.prepare("UPDATE users SET role = 'superadmin' WHERE role = 'admin'").run();
+	db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('roles_v2', '1')").run();
+}
 addCol("cleanup_rules", "schedule", "TEXT");
+addCol("sso_providers", "default_group_id", "INTEGER");
 
 // Seed first admin user
 const adminUsername = process.env.ADMIN_USERNAME || "admin";
@@ -209,7 +218,11 @@ if (!existing) {
 		}
 	}
 	const hash = bcrypt.hashSync(adminPassword, 12);
-	db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)").run(adminUsername, hash, "admin");
+	db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)").run(
+		adminUsername,
+		hash,
+		"superadmin",
+	);
 
 	if (generated) {
 		console.log(`[registry-admin] ============================================`);
@@ -227,7 +240,7 @@ try {
 	/* ignore */
 }
 db.close();
-// Drop WAL sidecars so the Next.js process (depot user) does not hit SHMSIZE on Docker Desktop
+// Drop WAL sidecars so the Next.js process (stash user) does not hit SHMSIZE on Docker Desktop
 const fs = require("fs");
 for (const suffix of ["-wal", "-shm"]) {
 	try {

@@ -43,7 +43,7 @@ function secret() {
 		// At actual request time (runtime) in production, NEXT_PHASE is unset — hard fail.
 		if (process.env.NODE_ENV === "production" && !process.env.NEXT_PHASE) {
 			throw new Error(
-				"[depot] TOKEN_SECRET environment variable is not set. " +
+				"[stash] TOKEN_SECRET environment variable is not set. " +
 					"Set a cryptographically random value (e.g. openssl rand -hex 32) before starting in production.",
 			);
 		}
