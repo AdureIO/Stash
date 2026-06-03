@@ -72,34 +72,34 @@ Example `docker-compose.yml`:
 
 ```yaml
 services:
-  depot:
-    image: adureio/depot:local
-    ports:
-      - "3000:3000"
-    environment:
-      PUBLIC_URL: http://localhost:3000
-    volumes:
-      - depot_data:/data
-      - /path/to/old-registry-data:/data/registry
+    depot:
+        image: adureio/depot:local
+        ports:
+            - "3000:3000"
+        environment:
+            PUBLIC_URL: http://localhost:3000
+        volumes:
+            - depot_data:/data
+            - /path/to/old-registry-data:/data/registry
 
 volumes:
-  depot_data:
+    depot_data:
 ```
 
 If your old registry data is in a named Docker volume:
 
 ```yaml
 services:
-  depot:
-    image: adureio/depot:local
-    volumes:
-      - depot_data:/data
-      - old_registry_volume:/data/registry
+    depot:
+        image: adureio/depot:local
+        volumes:
+            - depot_data:/data
+            - old_registry_volume:/data/registry
 
 volumes:
-  depot_data:
-  old_registry_volume:
-    external: true
+    depot_data:
+    old_registry_volume:
+        external: true
 ```
 
 Migration checklist:
@@ -177,6 +177,43 @@ In container deployments, secrets and auth key material are generated and persis
 - `REGISTRY_URL` (internal registry upstream URL; default `http://127.0.0.1:5000`)
 - `MAVEN_ROOT` (default `/data/maven`)
 - `NPM_ROOT` (default `/data/npm`)
+
+## Docker CLI Login
+
+Use a **Depot user** (from the admin panel) or a **personal access token** — not Docker Hub credentials.
+
+```bash
+docker login hub.example.com -u admin -p '<password>'
+# or with a PAT (create in Depot → Tokens):
+docker login hub.example.com -u token -p 'depot_pat_...'
+```
+
+Required environment on the server:
+
+- `PUBLIC_URL=https://hub.example.com` (must match the URL clients use; drives the auth `realm` in `registry.yml`)
+
+Having `PUBLIC_URL` set is necessary but not sufficient. After deploy, verify auth wiring:
+
+```bash
+curl -s https://hub.example.com/api/health | jq
+```
+
+Expect `"ok": true`, `"registry_jwt_sign": "ok"`, and `"token_secret_set": true`.
+
+**Swarm:** mount the same `/data` volume on every replica, or run **one replica** for SQLite. If multiple tasks share `/data` and start at the same time, they can race on `auth.key` / `auth.crt` and break Docker login until both files are removed and only one task generates them (recent images use a volume lock to prevent this).
+
+If login still fails after deploy, reset the admin password once:
+
+```yaml
+ADMIN_PASSWORD: "choose-a-strong-password"
+ADMIN_RESET_PASSWORD: "true"
+```
+
+Remove `ADMIN_RESET_PASSWORD` after one successful restart.
+
+After changing `PUBLIC_URL`, redeploy/restart the container so the registry reloads config. On startup, logs show:
+
+`[depot] Docker token realm: https://hub.example.com/api/auth/token`
 
 ## Registry/API Surfaces
 

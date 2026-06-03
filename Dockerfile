@@ -7,8 +7,8 @@ RUN npm ci
 
 FROM node:22-alpine AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+COPY --from=deps /app/node_modules ./node_modules
 RUN mkdir -p public && npm run build
 
 FROM node:22-alpine AS runner
@@ -32,6 +32,7 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+COPY --from=deps /app/node_modules/node-cron ./node_modules/node-cron
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && \
