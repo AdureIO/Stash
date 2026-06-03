@@ -6,6 +6,7 @@ import { getRepositoryDetail, listRepositories, listTags } from "@/lib/registry"
 import { db } from "@/lib/db";
 import { getActorUser } from "@/lib/auth";
 import { canManageResource, dockerResourceKeys, userCanViewResource } from "@/lib/access-control";
+import { isResourcePublic } from "@/lib/visibility";
 import { formatBytes } from "@/lib/utils";
 import type { ScanInfo } from "./scan-status-badge";
 
@@ -41,6 +42,7 @@ export default async function RepositoryDetailPage({ params }: Props) {
 	const keys = dockerResourceKeys(repoName);
 	if (actor && !userCanViewResource(actor, keys)) notFound();
 	const canManage = actor ? canManageResource(actor, keys) : false;
+	const isPublic = isResourcePublic("docker", repoName);
 
 	const tags = await listTags(repoName);
 	const repos = await listRepositories();
@@ -81,6 +83,7 @@ export default async function RepositoryDetailPage({ params }: Props) {
 				lastPush={lastPush}
 				details={details}
 				isAdmin={canManage}
+				isPublic={isPublic}
 				scansByTag={scansByTag}
 				webhooks={webhooks}
 				eventStats={eventStats}

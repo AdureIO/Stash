@@ -1,9 +1,15 @@
-import { LoginForm } from './login-form'
-import { db } from '@/lib/db'
+import { LoginForm } from "./login-form";
+import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  const ssoProviders = db.sso.findActive().map(p => ({ id: p.id, name: p.name, type: p.type }))
-  return <LoginForm ssoProviders={ssoProviders} />
+	const session = await getSession();
+	if (session?.totpVerified !== false) redirect("/dashboard");
+	if (session && session.totpVerified === false) redirect("/login/totp");
+
+	const ssoProviders = db.sso.findActive().map((p) => ({ id: p.id, name: p.name, type: p.type }));
+	return <LoginForm ssoProviders={ssoProviders} />;
 }

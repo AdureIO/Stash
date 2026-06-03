@@ -15,11 +15,11 @@ export default async function EditGroupPage({ params }: Props) {
 	try {
 		await requirePanelAdmin();
 	} catch {
-		redirect("/");
+		redirect("/dashboard");
 	}
 
 	const actor = await getActorUser();
-	if (!actor) redirect("/");
+	if (!actor) redirect("/dashboard");
 
 	const { id } = await params;
 	const groupId = Number(id);

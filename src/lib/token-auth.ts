@@ -8,6 +8,7 @@ import { db, type User } from "./db";
 import { hashPat, PAT_PREFIX } from "./pat";
 import bcrypt from "bcryptjs";
 import { allowedActionsForResource, dockerResourceKeys, type RegistryAction } from "./access-control";
+import { isResourcePublic } from "./visibility";
 
 const ISSUER = "registry-admin";
 const SERVICE = "docker-registry";
@@ -125,6 +126,39 @@ export async function issueToken(req: TokenRequest): Promise<TokenResponse | nul
 		.sign(privateKey);
 
 	db.users.update(user.id, { last_login: now.toISOString() });
+	return { token, expires_in: TOKEN_EXPIRY, issued_at: now.toISOString() };
+}
+
+/** Issue a pull-only registry JWT for anonymous access to public repositories. Push is never granted. */
+export async function issueAnonymousToken(scope: string): Promise<TokenResponse | null> {
+	if (!scope.trim()) return null;
+
+	const scopes = scope.split(" ").map(parseScope).filter(Boolean) as AccessEntry[];
+	if (!scopes.length) return null;
+
+	const access: AccessEntry[] = [];
+	for (const entry of scopes) {
+		if (entry.type !== "repository") return null;
+		// Reject any scope that requests push, delete, or other non-pull actions.
+		if (entry.actions.length === 0 || !entry.actions.every((a) => a === "pull")) return null;
+		if (!isResourcePublic("docker", entry.name)) return null;
+		access.push({ type: "repository", name: entry.name, actions: ["pull"] });
+	}
+
+	if (!access.length) return null;
+
+	const privateKey = getPrivateKey();
+	const now = new Date();
+	const token = await new SignJWT({ access, jti: uuidv4() })
+		.setProtectedHeader({ alg: "RS256", x5c: getSigningCertX5c() })
+		.setIssuer(ISSUER)
+		.setSubject("anonymous")
+		.setAudience(SERVICE)
+		.setIssuedAt(now)
+		.setNotBefore(now)
+		.setExpirationTime(`${TOKEN_EXPIRY}s`)
+		.sign(privateKey);
+
 	return { token, expires_in: TOKEN_EXPIRY, issued_at: now.toISOString() };
 }
 

@@ -1,5 +1,6 @@
 import { db, type User, type UserRole } from "./db";
 import { isSuperAdminRole } from "./roles";
+import { canAnonymousPullResourceKeys } from "./visibility";
 
 export type DefaultAccess = "deny" | "allow";
 export type RegistryAction = "pull" | "push" | "delete";
@@ -104,7 +105,10 @@ function mergeRuleActions(
 	}
 }
 
-export function canResourceAction(user: User, resourceKeys: string[], action: RegistryAction): boolean {
+export function canResourceAction(user: User | null, resourceKeys: string[], action: RegistryAction): boolean {
+	// Public visibility grants anonymous pull only — never push or delete.
+	if (action === "pull" && !user && canAnonymousPullResourceKeys(resourceKeys)) return true;
+	if (!user) return false;
 	return allowedActionsForResource(user, resourceKeys).has(action);
 }
 

@@ -42,8 +42,19 @@ async function authenticate(req: NextRequest): Promise<AuthResult | null> {
 	return null;
 }
 
-function npmAccess(user: AuthResult["user"], packageName: string, action: "pull" | "push" | "delete"): boolean {
+function npmAccess(user: AuthResult["user"] | null, packageName: string, action: "pull" | "push" | "delete"): boolean {
 	return canResourceAction(user, npmResourceKeys(packageName), action);
+}
+
+function npmReadAllowed(
+	auth: AuthResult | null,
+	packageName: string,
+): { allowed: boolean; unauthorized: boolean } {
+	if (auth && !scopeAllows(auth.tokenScope, "read")) {
+		return { allowed: false, unauthorized: false };
+	}
+	const allowed = npmAccess(auth?.user ?? null, packageName, "pull");
+	return { allowed, unauthorized: !auth && !allowed };
 }
 
 function scopeAllows(tokenScope: string | undefined, required: "read" | "publish" | "delete"): boolean {
@@ -88,14 +99,12 @@ export async function GET(req: NextRequest, { params }: Params) {
 	const tarballMatch = joined.match(/^(.+)\/-\/(.+\.tgz)$/);
 	if (tarballMatch) {
 		const auth = await authenticate(req);
-		if (!auth) return unauthorized();
-		if (!scopeAllows(auth.tokenScope, "read"))
-			return new NextResponse(JSON.stringify({ error: "Forbidden: token scope does not allow read" }), {
-				status: 403,
-			});
 		const pkgName = tarballMatch[1];
-		if (!npmAccess(auth.user, pkgName, "pull"))
+		const access = npmReadAllowed(auth, pkgName);
+		if (!access.allowed) {
+			if (access.unauthorized) return unauthorized();
 			return new NextResponse(JSON.stringify({ error: "Forbidden" }), { status: 403 });
+		}
 		const filename = tarballMatch[2];
 		// Extract version from filename: pkg-1.0.0.tgz
 		const versionMatch = filename.match(/^.+-(\d.+)\.tgz$/);
@@ -108,14 +117,12 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 	// Package metadata: /@scope/pkg or /pkg
 	const auth = await authenticate(req);
-	if (!auth) return unauthorized();
-	if (!scopeAllows(auth.tokenScope, "read"))
-		return new NextResponse(JSON.stringify({ error: "Forbidden: token scope does not allow read" }), {
-			status: 403,
-		});
 	const pkgName = joined;
-	if (!npmAccess(auth.user, pkgName, "pull"))
+	const access = npmReadAllowed(auth, pkgName);
+	if (!access.allowed) {
+		if (access.unauthorized) return unauthorized();
 		return new NextResponse(JSON.stringify({ error: "Forbidden" }), { status: 403 });
+	}
 	const meta = buildPackageMeta(pkgName, baseUrl);
 	if (!meta)
 		return new NextResponse(JSON.stringify({ error: "Not found" }), {

@@ -1,0 +1,433 @@
+/* Public catalog — light & dark themes via html[data-portal-theme] */
+
+html[data-portal-theme="dark"] body {
+	@apply bg-zinc-950 text-zinc-100;
+}
+
+html[data-portal-theme="light"] body {
+	@apply bg-zinc-50 text-zinc-900;
+}
+
+html[data-portal-theme="dark"] ::-webkit-scrollbar-thumb {
+	@apply bg-zinc-700 rounded-full;
+}
+
+html[data-portal-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+	@apply bg-zinc-600;
+}
+
+html[data-portal-theme="light"] ::-webkit-scrollbar-thumb {
+	@apply bg-zinc-300 rounded-full;
+}
+
+html[data-portal-theme="light"] ::-webkit-scrollbar-thumb:hover {
+	@apply bg-zinc-400;
+}
+
+html[data-portal-theme="dark"] *:focus-visible {
+	@apply ring-offset-zinc-950;
+}
+
+html[data-portal-theme="light"] *:focus-visible {
+	@apply ring-offset-zinc-50;
+}
+
+[data-portal-theme="dark"] .portal-root {
+	@apply min-h-screen text-zinc-100;
+}
+
+[data-portal-theme="light"] .portal-root {
+	@apply min-h-screen text-zinc-900;
+}
+
+[data-portal-theme="dark"] .portal-ambient {
+	@apply pointer-events-none fixed inset-0 -z-10;
+	background-image:
+		radial-gradient(ellipse at top, rgba(37, 99, 235, 0.14) 0%, transparent 50%),
+		radial-gradient(ellipse at bottom right, rgba(124, 58, 237, 0.1) 0%, transparent 45%);
+}
+
+[data-portal-theme="light"] .portal-ambient {
+	@apply pointer-events-none fixed inset-0 -z-10;
+	background-image:
+		radial-gradient(ellipse at top, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+		radial-gradient(ellipse at bottom right, rgba(139, 92, 246, 0.06) 0%, transparent 45%);
+}
+
+[data-portal-theme="dark"] .portal-grid {
+	@apply pointer-events-none fixed inset-0 -z-10 opacity-[0.04];
+	background-image:
+		linear-gradient(rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(255, 255, 255, 0.6) 1px, transparent 1px);
+	background-size: 40px 40px;
+}
+
+[data-portal-theme="light"] .portal-grid {
+	@apply pointer-events-none fixed inset-0 -z-10 opacity-[0.35];
+	background-image:
+		linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+	background-size: 40px 40px;
+}
+
+[data-portal-theme="dark"] .portal-header {
+	@apply border-b border-zinc-800/80 bg-zinc-950/80;
+}
+
+[data-portal-theme="light"] .portal-header {
+	@apply border-b border-zinc-200/80 bg-white/80;
+}
+
+[data-portal-theme="dark"] .portal-wordmark {
+	@apply text-zinc-100;
+}
+
+[data-portal-theme="light"] .portal-wordmark {
+	@apply text-zinc-900;
+}
+
+[data-portal-theme="dark"] .portal-sign-in-btn {
+	@apply border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800 hover:text-white;
+}
+
+[data-portal-theme="light"] .portal-sign-in-btn {
+	@apply border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50;
+}
+
+[data-portal-theme="dark"] .portal-theme-toggle {
+	@apply inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700/80 bg-zinc-900/80 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200;
+}
+
+[data-portal-theme="light"] .portal-theme-toggle {
+	@apply inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-800;
+}
+
+[data-portal-theme="dark"] .portal-footer-text {
+	@apply text-zinc-600;
+}
+
+[data-portal-theme="light"] .portal-footer-text {
+	@apply text-zinc-400;
+}
+
+[data-portal-theme="dark"] .portal-hero {
+	@apply relative mb-10 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/80 shadow-xl shadow-black/30;
+}
+
+[data-portal-theme="light"] .portal-hero {
+	@apply relative mb-10 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm;
+}
+
+[data-portal-theme="dark"] .portal-hero-glow {
+	opacity: 0.6;
+	background-image:
+		radial-gradient(circle at 15% 50%, rgba(37, 99, 235, 0.2) 0%, transparent 45%),
+		radial-gradient(circle at 85% 20%, rgba(124, 58, 237, 0.15) 0%, transparent 40%);
+}
+
+[data-portal-theme="light"] .portal-hero-glow {
+	opacity: 0.5;
+	background-image:
+		radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.12) 0%, transparent 45%),
+		radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
+}
+
+[data-portal-theme="dark"] .portal-hero-eyebrow {
+	@apply text-blue-400/90;
+}
+
+[data-portal-theme="light"] .portal-hero-eyebrow {
+	@apply text-blue-600;
+}
+
+[data-portal-theme="dark"] .portal-hero-title {
+	@apply text-white;
+}
+
+[data-portal-theme="light"] .portal-hero-title {
+	@apply text-zinc-900;
+}
+
+[data-portal-theme="dark"] .portal-hero-sub {
+	@apply text-zinc-400;
+}
+
+[data-portal-theme="light"] .portal-hero-sub {
+	@apply text-zinc-500;
+}
+
+[data-portal-theme="dark"] .portal-hero-pill {
+	@apply border-zinc-700/80 bg-zinc-950/60 text-zinc-300;
+}
+
+[data-portal-theme="light"] .portal-hero-pill {
+	@apply border-zinc-200 bg-zinc-50 text-zinc-600;
+}
+
+[data-portal-theme="dark"] .portal-muted-hover {
+	@apply text-zinc-500 hover:text-zinc-300 transition-colors;
+}
+
+[data-portal-theme="light"] .portal-muted-hover {
+	@apply text-zinc-500 hover:text-zinc-700 transition-colors;
+}
+
+[data-portal-theme="dark"] .portal-heading {
+	@apply text-zinc-100;
+}
+
+[data-portal-theme="light"] .portal-heading {
+	@apply text-zinc-900;
+}
+
+[data-portal-theme="dark"] .portal-section-title {
+	@apply text-zinc-100;
+}
+
+[data-portal-theme="light"] .portal-section-title {
+	@apply text-zinc-900;
+}
+
+[data-portal-theme="dark"] .portal-package-name {
+	@apply text-zinc-100;
+}
+
+[data-portal-theme="light"] .portal-package-name {
+	@apply text-zinc-900;
+}
+
+[data-portal-theme="dark"] .portal-card {
+	@apply rounded-xl border border-zinc-800/90 bg-zinc-900/70 backdrop-blur-sm;
+}
+
+[data-portal-theme="light"] .portal-card {
+	@apply rounded-xl border border-zinc-200/80 bg-white backdrop-blur-sm;
+}
+
+[data-portal-theme="dark"] .portal-card-hover {
+	@apply rounded-xl border border-zinc-800/90 bg-zinc-900/70 backdrop-blur-sm transition-all hover:border-zinc-700 hover:bg-zinc-900/90 hover:shadow-lg hover:shadow-black/20;
+}
+
+[data-portal-theme="light"] .portal-card-hover {
+	@apply rounded-xl border border-zinc-200/80 bg-white transition-all hover:shadow-md;
+}
+
+[data-portal-theme="dark"] .portal-card-hover--blue:hover {
+	@apply border-blue-500/40;
+}
+
+[data-portal-theme="light"] .portal-card-hover--blue:hover {
+	@apply border-blue-300 shadow-blue-100/50;
+}
+
+[data-portal-theme="dark"] .portal-card-hover--purple:hover {
+	@apply border-purple-500/40;
+}
+
+[data-portal-theme="light"] .portal-card-hover--purple:hover {
+	@apply border-purple-300 shadow-purple-100/50;
+}
+
+[data-portal-theme="dark"] .portal-card-hover--emerald:hover {
+	@apply border-emerald-500/40;
+}
+
+[data-portal-theme="light"] .portal-card-hover--emerald:hover {
+	@apply border-emerald-300 shadow-emerald-100/50;
+}
+
+[data-portal-theme="dark"] .portal-card-header {
+	@apply flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/80;
+}
+
+[data-portal-theme="light"] .portal-card-header {
+	@apply flex items-center justify-between px-5 py-3.5 border-b border-zinc-100;
+}
+
+[data-portal-theme="dark"] .portal-card-title {
+	@apply text-sm font-semibold text-zinc-100 tracking-tight;
+}
+
+[data-portal-theme="light"] .portal-card-title {
+	@apply text-sm font-semibold text-zinc-800 tracking-tight;
+}
+
+.portal-card-content {
+	@apply px-5 py-4;
+}
+
+[data-portal-theme="dark"] .portal-card-dashed {
+	@apply border-dashed border-zinc-700/80;
+}
+
+[data-portal-theme="light"] .portal-card-dashed {
+	@apply border-dashed border-zinc-200;
+}
+
+[data-portal-theme="dark"] .portal-empty-icon {
+	@apply bg-zinc-800/80 border border-zinc-700/60 text-zinc-500;
+}
+
+[data-portal-theme="light"] .portal-empty-icon {
+	@apply bg-zinc-100 border border-zinc-200 text-zinc-400;
+}
+
+[data-portal-theme="dark"] .portal-empty-title {
+	@apply text-zinc-300;
+}
+
+[data-portal-theme="light"] .portal-empty-title {
+	@apply text-zinc-700;
+}
+
+.portal-section-icon {
+	@apply w-8 h-8 rounded-lg border flex items-center justify-center;
+}
+
+[data-portal-theme="dark"] .portal-section-icon--blue {
+	@apply bg-blue-500/10 border-blue-500/20 text-blue-400;
+}
+
+[data-portal-theme="light"] .portal-section-icon--blue {
+	@apply bg-blue-50 border-blue-100 text-blue-600;
+}
+
+[data-portal-theme="dark"] .portal-section-icon--purple {
+	@apply bg-purple-500/10 border-purple-500/20 text-purple-400;
+}
+
+[data-portal-theme="light"] .portal-section-icon--purple {
+	@apply bg-purple-50 border-purple-100 text-purple-600;
+}
+
+[data-portal-theme="dark"] .portal-section-icon--emerald {
+	@apply bg-emerald-500/10 border-emerald-500/20 text-emerald-400;
+}
+
+[data-portal-theme="light"] .portal-section-icon--emerald {
+	@apply bg-emerald-50 border-emerald-100 text-emerald-600;
+}
+
+[data-portal-theme="dark"] .portal-count-badge {
+	@apply inline-flex items-center rounded-full border border-zinc-700/80 bg-zinc-800/80 px-2.5 py-0.5 text-[11px] font-medium text-zinc-400;
+}
+
+[data-portal-theme="light"] .portal-count-badge {
+	@apply inline-flex items-center rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-0.5 text-[11px] font-medium text-zinc-600;
+}
+
+[data-portal-theme="dark"] .portal-arrow {
+	@apply text-zinc-600 group-hover:text-zinc-400 transition-colors;
+}
+
+[data-portal-theme="light"] .portal-arrow {
+	@apply text-zinc-300 group-hover:text-zinc-500 transition-colors;
+}
+
+[data-portal-theme="dark"] .portal-th {
+	@apply px-4 py-2.5 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800 bg-zinc-900/50;
+}
+
+[data-portal-theme="light"] .portal-th {
+	@apply px-4 py-2.5 text-left text-[11px] font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-100 bg-zinc-50/60;
+}
+
+[data-portal-theme="dark"] .portal-td {
+	@apply px-4 py-3 text-zinc-300 align-middle;
+}
+
+[data-portal-theme="light"] .portal-td {
+	@apply px-4 py-3 text-zinc-700 align-middle;
+}
+
+[data-portal-theme="dark"] .portal-tr {
+	@apply transition-colors hover:bg-zinc-800/40;
+}
+
+[data-portal-theme="light"] .portal-tr {
+	@apply transition-colors hover:bg-zinc-50/70;
+}
+
+[data-portal-theme="dark"] .portal-tbody {
+	@apply divide-y divide-zinc-800/60;
+}
+
+[data-portal-theme="light"] .portal-tbody {
+	@apply divide-y divide-zinc-50;
+}
+
+.portal-badge {
+	@apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium leading-none;
+}
+
+[data-portal-theme="dark"] .portal-badge--default {
+	@apply bg-zinc-800 text-zinc-300 border border-zinc-700;
+}
+
+[data-portal-theme="light"] .portal-badge--default {
+	@apply bg-zinc-100 text-zinc-600 border border-zinc-200;
+}
+
+[data-portal-theme="dark"] .portal-badge--info {
+	@apply bg-blue-500/15 text-blue-300 border border-blue-500/25;
+}
+
+[data-portal-theme="light"] .portal-badge--info {
+	@apply bg-blue-50 text-blue-700 border border-blue-100;
+}
+
+[data-portal-theme="dark"] .portal-badge--success {
+	@apply bg-emerald-500/15 text-emerald-300 border border-emerald-500/25;
+}
+
+[data-portal-theme="light"] .portal-badge--success {
+	@apply bg-emerald-50 text-emerald-700 border border-emerald-100;
+}
+
+[data-portal-theme="dark"] .portal-badge--purple {
+	@apply bg-purple-500/15 text-purple-300 border border-purple-500/25;
+}
+
+[data-portal-theme="light"] .portal-badge--purple {
+	@apply bg-purple-50 text-purple-700 border border-purple-100;
+}
+
+[data-portal-theme="dark"] .portal-code-label {
+	@apply text-zinc-500;
+}
+
+[data-portal-theme="light"] .portal-code-label {
+	@apply text-zinc-500;
+}
+
+[data-portal-theme="dark"] .portal-code-block {
+	@apply text-xs bg-zinc-950 text-zinc-300 rounded-lg border border-zinc-800 p-3 pr-10 overflow-x-auto whitespace-pre-wrap;
+}
+
+[data-portal-theme="light"] .portal-code-block {
+	@apply text-xs bg-zinc-900 text-zinc-300 rounded-lg border border-zinc-800 p-3 pr-10 overflow-x-auto whitespace-pre-wrap;
+}
+
+[data-portal-theme="dark"] .portal-code-copy {
+	@apply absolute top-2 right-2 p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors;
+}
+
+[data-portal-theme="light"] .portal-code-copy {
+	@apply absolute top-2 right-2 p-1.5 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors;
+}
+
+[data-portal-theme="dark"] .portal-version-chip {
+	@apply flex items-center gap-2 rounded-lg border border-zinc-700/80 bg-zinc-950/50 px-3 py-2;
+}
+
+[data-portal-theme="light"] .portal-version-chip {
+	@apply flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2;
+}
+
+[data-portal-theme="dark"] .portal-muted {
+	@apply text-zinc-500;
+}
+
+[data-portal-theme="light"] .portal-muted {
+	@apply text-zinc-500;
+}

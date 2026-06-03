@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { StashLogo } from "@/components/brand/stash-logo";
@@ -53,7 +54,7 @@ export function LoginForm({ ssoProviders }: Props) {
 			}
 
 			if (res.ok) {
-				router.push("/");
+				router.push("/dashboard");
 				router.refresh();
 				return;
 			}
@@ -78,6 +79,12 @@ export function LoginForm({ ssoProviders }: Props) {
 					<StashLogo size="lg" className="mb-4" />
 					<h1 className="text-xl font-semibold text-white">Stash</h1>
 					<p className="text-zinc-400 text-sm mt-1">Sign in to manage your registry</p>
+					<Link
+						href="/"
+						className="text-sm text-blue-400 hover:text-blue-300 mt-2 inline-block transition-colors"
+					>
+						Browse public pull packages →
+					</Link>
 				</div>
 
 				<form onSubmit={handleSubmit} className="bg-zinc-800 rounded-xl p-6 space-y-4 border border-zinc-700">

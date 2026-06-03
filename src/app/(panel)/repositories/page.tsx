@@ -61,7 +61,7 @@ async function getRepoSummaries(repos: string[]): Promise<RepoSummary[]> {
 }
 
 export default async function RepositoriesPage() {
-	if (!getFeatures().docker) redirect("/");
+	if (!getFeatures().docker) redirect("/dashboard");
 	const actor = await getActorUser();
 	let repos = await listRepositories();
 	if (actor) {

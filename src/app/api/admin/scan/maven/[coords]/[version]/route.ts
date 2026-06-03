@@ -7,6 +7,8 @@ import { parseMavenArtifactCoords } from "@/lib/maven-utils";
 import { resolvePrimaryArtifactFile } from "@/lib/maven-storage";
 import { mavenScanRepository } from "@/lib/maven-scans";
 
+export const maxDuration = 600;
+
 interface Params {
 	params: Promise<{ coords: string; version: string }>;
 }

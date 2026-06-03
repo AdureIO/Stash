@@ -34,7 +34,7 @@ function forbidden() {
 	return new NextResponse("Forbidden", { status: 403 });
 }
 
-function mavenAccess(user: User, segments: string[], action: "pull" | "push" | "delete"): boolean {
+function mavenAccess(user: User | null, segments: string[], action: "pull" | "push" | "delete"): boolean {
 	return canResourceAction(user, mavenResourceKeys(segments), action);
 }
 
@@ -45,10 +45,11 @@ interface Params {
 export async function GET(req: NextRequest, { params }: Params) {
 	if (!getFeatures().maven) return new NextResponse("Not Found", { status: 404 });
 	const user = await authenticate(req);
-	if (!user) return unauthorized();
-
 	const { path: segments } = await params;
-	if (!mavenAccess(user, segments ?? [], "pull")) return forbidden();
+	if (!mavenAccess(user, segments ?? [], "pull")) {
+		if (!user) return unauthorized();
+		return forbidden();
+	}
 
 	const result = resolveMavenGet(segments ?? [], MAVEN_ROOT);
 

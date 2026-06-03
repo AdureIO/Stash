@@ -189,6 +189,18 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_storage_repo ON storage_snapshots(repository, registry_type);
+
+  CREATE TABLE IF NOT EXISTS public_resources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    registry_type TEXT NOT NULL,
+    resource_key TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by TEXT,
+    UNIQUE(registry_type, resource_key)
+  );
+  -- Row present = anonymous pull allowed for that resource. Push always requires auth.
+
+  CREATE INDEX IF NOT EXISTS idx_public_resources_type ON public_resources(registry_type);
 `);
 
 function addCol(table, col, def) {

@@ -22,7 +22,7 @@ export default function TotpPage() {
 			body: JSON.stringify({ code }),
 		});
 		if (ok) {
-			router.push("/");
+			router.push("/dashboard");
 			router.refresh();
 		} else {
 			setError(err || "Invalid code");

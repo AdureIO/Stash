@@ -14,7 +14,7 @@ import { filterResourcesByViewAccess } from "@/lib/access-control";
 import { mavenScanRepository } from "@/lib/maven-utils";
 
 export default async function PackagesPage() {
-	if (!getFeatures().maven) redirect("/");
+	if (!getFeatures().maven) redirect("/dashboard");
 	const actor = await getActorUser();
 	let raw = listMavenArtifacts();
 	if (actor) {

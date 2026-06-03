@@ -16,6 +16,7 @@ import type { ScanInfo } from "@/app/(panel)/repositories/[name]/scan-status-bad
 import { ScanSecurityCell } from "@/components/security/scan-security-cell";
 import { apiFetch } from "@/lib/api";
 import { mavenScanApiPath } from "@/lib/maven-utils";
+import { VisibilityToggle } from "@/components/visibility/visibility-toggle";
 
 const VERSION_SORT_OPTIONS = [
 	{ id: "version", label: "Version" },
@@ -68,9 +69,18 @@ interface Props {
 	mavenBaseUrl: string;
 	scansByVersion: Record<string, ScanInfo>;
 	isAdmin: boolean;
+	isPublic: boolean;
+	visibilityResourceKey: string;
 }
 
-export function MavenArtifactDetailView({ artifact, mavenBaseUrl, scansByVersion, isAdmin }: Props) {
+export function MavenArtifactDetailView({
+	artifact,
+	mavenBaseUrl,
+	scansByVersion,
+	isAdmin,
+	isPublic,
+	visibilityResourceKey,
+}: Props) {
 	const router = useRouter();
 	const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 	const [copied, setCopied] = useState<string | null>(null);
@@ -122,7 +132,18 @@ export function MavenArtifactDetailView({ artifact, mavenBaseUrl, scansByVersion
 
 	return (
 		<div>
-			<Header title={coords} subtitle={subtitle} />
+			<Header
+				title={coords}
+				subtitle={subtitle}
+				actions={
+					<VisibilityToggle
+						registryType="maven"
+						resourceKey={visibilityResourceKey}
+						initialPublic={isPublic}
+						canManage={isAdmin}
+					/>
+				}
+			/>
 
 			{message && (
 				<p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4">

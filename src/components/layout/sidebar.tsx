@@ -18,6 +18,7 @@ import {
 	Users2,
 	FileText,
 	UserCircle,
+	Globe,
 } from "lucide-react";
 import type { Features } from "@/lib/features";
 import { GlobalSearch } from "@/components/layout/global-search";
@@ -47,7 +48,8 @@ function buildNav(features: Features, role: string | null): NavItem[] {
 	const superAdmin = role ? isSuperAdminRole(role) : false;
 
 	const items: NavItem[] = [
-		{ type: "link", href: "/", label: "Dashboard", icon: LayoutDashboard },
+		{ type: "link", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+		{ type: "link", href: "/", label: "Public catalog", icon: Globe },
 
 		{ type: "section" as const, label: "Registries" },
 		...(features.docker
@@ -152,17 +154,19 @@ export function Sidebar({ features, role }: { features: Features; role: string |
 	}
 
 	return (
-		<aside className="w-[220px] min-h-screen bg-zinc-950 flex flex-col shrink-0">
-			<div className="flex items-center gap-2.5 px-4 py-4 border-b border-zinc-800/60">
+		<aside className="w-[220px] h-full bg-zinc-950 flex flex-col shrink-0">
+			<div className="shrink-0 flex items-center gap-2.5 px-4 py-4 border-b border-zinc-800/60">
 				<StashLogo size="sm" showWordmark wordmarkClassName="text-sm" />
 				<span className="ml-auto text-[10px] font-medium text-zinc-600 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 leading-none">
 					v0.1
 				</span>
 			</div>
 
-			<GlobalSearch />
+			<div className="shrink-0">
+				<GlobalSearch />
+			</div>
 
-			<nav className="flex-1 py-3 overflow-y-auto">
+			<nav className="flex-1 min-h-0 py-3 overflow-y-auto">
 				{navItems.map((item, i) => {
 					if (item.type === "section") {
 						return (
@@ -176,7 +180,12 @@ export function Sidebar({ features, role }: { features: Features; role: string |
 					}
 
 					const { href, label, icon: Icon } = item;
-					const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+					const active =
+						href === "/"
+							? pathname === "/"
+							: href === "/dashboard"
+								? pathname === "/dashboard"
+								: pathname.startsWith(href);
 
 					return (
 						<Link
@@ -196,7 +205,7 @@ export function Sidebar({ features, role }: { features: Features; role: string |
 				})}
 			</nav>
 
-			<div className="p-2 border-t border-zinc-800/60">
+			<div className="shrink-0 p-2 border-t border-zinc-800/60">
 				<button
 					onClick={handleLogout}
 					className="sidebar-text w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300 transition-colors"

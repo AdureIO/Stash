@@ -1,30 +1,54 @@
 // Trivy vulnerability scanner integration
-// Uses spawnSync with separate args — never interpolates user input into shell strings
+// Uses spawn with separate args — never interpolates user input into shell strings
 import { randomBytes } from "crypto";
-import { spawnSync } from "child_process";
+import { spawn } from "child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync } from "fs";
-import { resolve } from "path";
-import { join } from "path";
+import { tmpdir } from "os";
+import { join, resolve } from "path";
 
 // Trivy 0.71 defaults to mirror.gcr.io first, which often fails with UNAUTHORIZED without fallback
 const DEFAULT_DB_REPOSITORY = "public.ecr.aws/aquasecurity/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2";
 const DEFAULT_JAVA_DB_REPOSITORY = "public.ecr.aws/aquasecurity/trivy-java-db:1,ghcr.io/aquasecurity/trivy-java-db:1";
-const DEFAULT_CACHE_DIR = "/data/trivy/cache";
-const DEFAULT_MODULE_DIR = "/data/trivy/modules";
 const SCAN_TIMEOUT_MS = 300_000;
-const STDERR_MAX_BUFFER = 8 * 1024 * 1024;
-const STDOUT_MAX_BUFFER = 512 * 1024 * 1024;
 const REPORT_WAIT_MS = 8_000;
 
+function resolveTrivyBin(): string {
+	if (process.env.TRIVY_BIN && existsSync(process.env.TRIVY_BIN)) return process.env.TRIVY_BIN;
+	const root = process.env.TRIVY_ROOT || join(process.env.DATA || "/data", "trivy");
+	const candidate = join(root, "bin/trivy");
+	if (existsSync(candidate)) return candidate;
+	return "trivy";
+}
+
+function resolveCacheDir(): string {
+	if (process.env.TRIVY_CACHE_DIR) return process.env.TRIVY_CACHE_DIR;
+	const preferred = join(process.env.DATA || "/data", "trivy/cache");
+	try {
+		mkdirSync(preferred, { recursive: true });
+		return preferred;
+	} catch {
+		const fallback = join(tmpdir(), "stash-trivy-cache");
+		mkdirSync(fallback, { recursive: true });
+		return fallback;
+	}
+}
+
+function resolveModuleDir(): string {
+	if (process.env.TRIVY_MODULE_DIR) return process.env.TRIVY_MODULE_DIR;
+	return join(process.env.DATA || "/data", "trivy/modules");
+}
+
 function trivyEnv(): NodeJS.ProcessEnv {
+	const cacheDir = resolveCacheDir();
 	return {
 		...process.env,
 		TRIVY_INSECURE: "true",
 		TRIVY_LOG_LEVEL: process.env.TRIVY_LOG_LEVEL ?? "error",
-		TRIVY_CACHE_DIR: process.env.TRIVY_CACHE_DIR ?? DEFAULT_CACHE_DIR,
-		TRIVY_MODULE_DIR: process.env.TRIVY_MODULE_DIR ?? DEFAULT_MODULE_DIR,
+		TRIVY_CACHE_DIR: cacheDir,
+		TRIVY_MODULE_DIR: resolveModuleDir(),
 		TRIVY_DB_REPOSITORY: process.env.TRIVY_DB_REPOSITORY ?? DEFAULT_DB_REPOSITORY,
 		TRIVY_JAVA_DB_REPOSITORY: process.env.TRIVY_JAVA_DB_REPOSITORY ?? DEFAULT_JAVA_DB_REPOSITORY,
+		PATH: process.env.PATH,
 	};
 }
 
@@ -103,19 +127,16 @@ function trivyExitOk(status: number | null): boolean {
 	return status === 0 || status === 1;
 }
 
-function sleepMs(ms: number): void {
-	const end = Date.now() + ms;
-	while (Date.now() < end) {
-		/* busy wait — short poll between stat checks */
-	}
-}
-
 function uniqueReportPath(reportDir: string): string {
 	const id = randomBytes(6).toString("hex");
 	return resolve(reportDir, `scan-${Date.now()}-${process.pid}-${id}.json`);
 }
 
-function readReportFile(reportPath: string, maxWaitMs = REPORT_WAIT_MS): string | null {
+async function waitMs(ms: number): Promise<void> {
+	await new Promise((r) => setTimeout(r, ms));
+}
+
+async function readReportFile(reportPath: string, maxWaitMs = REPORT_WAIT_MS): Promise<string | null> {
 	const deadline = Date.now() + maxWaitMs;
 	while (Date.now() < deadline) {
 		try {
@@ -126,33 +147,47 @@ function readReportFile(reportPath: string, maxWaitMs = REPORT_WAIT_MS): string 
 		} catch {
 			/* retry */
 		}
-		sleepMs(100);
+		await waitMs(100);
 	}
 	return null;
 }
 
 type TrivyRun = {
 	status: number | null;
-	stderr: string;
-	spawnError?: Error;
+	signal: NodeJS.Signals | null;
 };
 
-function runTrivy(args: string[], captureStdout: boolean): TrivyRun & { stdout?: string } {
-	const result = spawnSync("trivy", args, {
-		timeout: SCAN_TIMEOUT_MS,
-		env: trivyEnv(),
-		shell: false,
-		stdio: captureStdout ? ["ignore", "pipe", "pipe"] : ["ignore", "ignore", "pipe"],
-		encoding: "utf8",
-		maxBuffer: captureStdout ? STDOUT_MAX_BUFFER : STDERR_MAX_BUFFER,
-	});
+/** Run Trivy without piping stdio — piping can hit maxBuffer and SIGKILL Trivy mid-scan. */
+async function runTrivy(args: string[]): Promise<TrivyRun> {
+	const bin = resolveTrivyBin();
+	return new Promise((resolve, reject) => {
+		const child = spawn(bin, args, {
+			env: trivyEnv(),
+			shell: false,
+			stdio: "ignore",
+		});
 
-	return {
-		status: result.status,
-		stderr: (result.stderr || "").trim(),
-		stdout: captureStdout ? (result.stdout || "").trim() : undefined,
-		spawnError: result.error,
-	};
+		let timedOut = false;
+		const timer = setTimeout(() => {
+			timedOut = true;
+			child.kill("SIGTERM");
+			setTimeout(() => child.kill("SIGKILL"), 5_000).unref();
+		}, SCAN_TIMEOUT_MS);
+
+		child.on("error", (err) => {
+			clearTimeout(timer);
+			reject(err);
+		});
+
+		child.on("close", (status, signal) => {
+			clearTimeout(timer);
+			if (timedOut && status === null) {
+				reject(new Error(`trivy scan timed out after ${SCAN_TIMEOUT_MS / 1000}s`));
+				return;
+			}
+			resolve({ status: signal ? null : status, signal: signal ?? null });
+		});
+	});
 }
 
 function skipDbUpdateArgs(): string[] {
@@ -179,11 +214,10 @@ function baseArgs(registryToken?: string): string[] {
 	return args;
 }
 
-function throwScanFailure(status: number | null, stderr: string, extra?: string): never {
+function throwScanFailure(status: number | null, signal: NodeJS.Signals | null, extra?: string): never {
 	const parts = [`trivy scan failed: exit code ${status ?? "unknown"}`];
+	if (signal) parts.push(`signal ${signal}`);
 	if (extra) parts.push(extra);
-	const errLine = stderr.split("\n").find((l) => /error|fatal|failed/i.test(l)) || stderr.slice(0, 400);
-	if (errLine) parts.push(errLine);
 	throw new Error(parts.join(" — "));
 }
 
@@ -194,19 +228,11 @@ function handleSpawnError(err: Error): never {
 	if (msg.includes("ETIMEDOUT") || msg.includes("timed out")) {
 		throw new Error(`trivy scan timed out after ${SCAN_TIMEOUT_MS / 1000}s`);
 	}
-	if (msg.includes("maxBuffer")) throw new Error("trivy stderr output exceeded buffer limit");
 	throw new Error(`trivy exec failed: ${msg}`);
 }
 
-function scanToFile(image: string, reportPath: string, registryToken?: string): TrivyRun {
-	const args = [...baseArgs(registryToken), "--output", reportPath, image];
-	return runTrivy(args, false);
-}
-
-function scanToStdout(image: string, registryToken?: string): TrivyRun & { stdout: string } {
-	const args = [...baseArgs(registryToken), image];
-	const run = runTrivy(args, true);
-	return { ...run, stdout: run.stdout ?? "" };
+async function scanToFile(args: string[], reportPath: string): Promise<TrivyRun> {
+	return runTrivy([...args, "--output", reportPath]);
 }
 
 // Validate image reference — only allow safe characters
@@ -246,76 +272,60 @@ function fsBaseArgs(): string[] {
 	return ["fs", "--scanners", "vuln", "--format", "json", "--quiet", "--no-progress", ...skipDbUpdateArgs()];
 }
 
+async function runScanToReportFile(
+	baseScanArgs: string[],
+	targetArg: string,
+	reportDir: string,
+): Promise<{ raw: string; lastRun: TrivyRun }> {
+	const paths = [uniqueReportPath(reportDir), uniqueReportPath(reportDir), uniqueReportPath(reportDir)];
+	let lastRun: TrivyRun = { status: null, signal: null };
+	let raw: string | null = null;
+
+	for (const reportPath of paths) {
+		try {
+			lastRun = await scanToFile([...baseScanArgs, targetArg], reportPath);
+			raw = await readReportFile(reportPath);
+			if (raw) return { raw, lastRun };
+		} catch (e) {
+			if (e instanceof Error && e.message.includes("ENOENT")) handleSpawnError(e);
+			throw e;
+		} finally {
+			try {
+				rmSync(reportPath, { force: true });
+			} catch {
+				/* ignore */
+			}
+		}
+	}
+
+	if (!raw) {
+		if (!trivyExitOk(lastRun.status)) {
+			throwScanFailure(lastRun.status, lastRun.signal, "no report file after retries");
+		}
+		throw new Error("trivy did not produce a report file after retries");
+	}
+
+	return { raw, lastRun };
+}
+
 async function scanFilesystemInner(targetPath: string): Promise<ScanSummary & { raw: string }> {
 	const resolved = resolve(targetPath);
 	if (!existsSync(resolved)) throw new Error("Scan target not found");
 	if (resolved.includes("..")) throw new Error("Invalid scan path");
 
-	const cacheDir = process.env.TRIVY_CACHE_DIR ?? DEFAULT_CACHE_DIR;
-	const reportDir = resolve(cacheDir, "reports");
+	const reportDir = resolve(resolveCacheDir(), "reports");
 	mkdirSync(reportDir, { recursive: true });
 
-	const reportPath = uniqueReportPath(reportDir);
-	let raw: string | null = null;
-	let lastRun: TrivyRun | null = null;
+	const { raw, lastRun } = await runScanToReportFile(fsBaseArgs(), resolved, reportDir);
 
-	const runFsToFile = (outPath: string) => {
-		const args = [...fsBaseArgs(), "--output", outPath, resolved];
-		return runTrivy(args, false);
-	};
-
-	try {
-		lastRun = runFsToFile(reportPath);
-		if (lastRun.spawnError) handleSpawnError(lastRun.spawnError);
-		raw = readReportFile(reportPath);
-
-		if (!raw) {
-			const retryPath = uniqueReportPath(reportDir);
-			try {
-				lastRun = runFsToFile(retryPath);
-				if (lastRun.spawnError) handleSpawnError(lastRun.spawnError);
-				raw = readReportFile(retryPath);
-			} finally {
-				try {
-					rmSync(retryPath, { force: true });
-				} catch {
-					/* ignore */
-				}
-			}
-		}
-
-		if (!raw) {
-			const args = [...fsBaseArgs(), resolved];
-			const stdoutRun = runTrivy(args, true);
-			lastRun = stdoutRun;
-			if (stdoutRun.spawnError) handleSpawnError(stdoutRun.spawnError);
-			if (stdoutRun.stdout && looksLikeCompleteJson(stdoutRun.stdout)) raw = stdoutRun.stdout;
-		}
-
-		if (!raw) {
-			if (!trivyExitOk(lastRun?.status ?? null)) {
-				throwScanFailure(lastRun?.status ?? null, lastRun?.stderr ?? "", "no report file");
-			}
-			throw new Error(
-				`trivy did not produce a report${lastRun?.stderr ? ` — ${lastRun.stderr.slice(0, 400)}` : ""}`,
-			);
-		}
-
-		if (!trivyExitOk(lastRun?.status ?? null)) {
-			const preview = normalizeReportText(raw).slice(0, 300);
-			throwScanFailure(lastRun?.status ?? null, lastRun?.stderr ?? "", preview);
-		}
-
-		const parsed = parseTrivyReport(raw);
-		const vulns = extractVulnerabilities(parsed);
-		return { ...countSeverities(vulns), vulns, raw };
-	} finally {
-		try {
-			rmSync(reportPath, { force: true });
-		} catch {
-			/* ignore */
-		}
+	if (!trivyExitOk(lastRun.status)) {
+		const preview = normalizeReportText(raw).slice(0, 300);
+		throwScanFailure(lastRun.status, lastRun.signal, preview);
 	}
+
+	const parsed = parseTrivyReport(raw);
+	const vulns = extractVulnerabilities(parsed);
+	return { ...countSeverities(vulns), vulns, raw };
 }
 
 async function scanImageInner(
@@ -331,68 +341,29 @@ async function scanImageInner(
 	validateImageRef(host, "registry host");
 
 	const image = tag.startsWith("sha256:") ? `${host}/${repo}@${tag}` : `${host}/${repo}:${tag}`;
-	const cacheDir = process.env.TRIVY_CACHE_DIR ?? DEFAULT_CACHE_DIR;
-	const reportDir = resolve(cacheDir, "reports");
+	const reportDir = resolve(resolveCacheDir(), "reports");
 	mkdirSync(reportDir, { recursive: true });
 
-	const reportPath = uniqueReportPath(reportDir);
-	let raw: string | null = null;
-	let lastRun: TrivyRun | null = null;
+	const bin = resolveTrivyBin();
+	console.info(`[trivy] scanning ${image} via ${bin}`);
 
+	let raw: string;
+	let lastRun: TrivyRun;
 	try {
-		// 1) Prefer --output file (avoids huge stdout buffers). Poll until Trivy flushes the file.
-		lastRun = scanToFile(image, reportPath, registryToken);
-		if (lastRun.spawnError) handleSpawnError(lastRun.spawnError);
-		raw = readReportFile(reportPath);
-
-		// 2) One retry with a fresh path (occasional race when multiple scans run in parallel)
-		if (!raw) {
-			const retryPath = uniqueReportPath(reportDir);
-			try {
-				lastRun = scanToFile(image, retryPath, registryToken);
-				if (lastRun.spawnError) handleSpawnError(lastRun.spawnError);
-				raw = readReportFile(retryPath);
-			} finally {
-				try {
-					rmSync(retryPath, { force: true });
-				} catch {
-					/* ignore */
-				}
-			}
-		}
-
-		// 3) Fallback: JSON on stdout (stderr capped separately so it cannot kill the process)
-		if (!raw) {
-			const stdoutRun = scanToStdout(image, registryToken);
-			lastRun = stdoutRun;
-			if (stdoutRun.spawnError) handleSpawnError(stdoutRun.spawnError);
-			if (stdoutRun.stdout && looksLikeCompleteJson(stdoutRun.stdout)) {
-				raw = stdoutRun.stdout;
-			}
-		}
-
-		if (!raw) {
-			if (!trivyExitOk(lastRun?.status ?? null)) {
-				throwScanFailure(lastRun?.status ?? null, lastRun?.stderr ?? "", "no report file");
-			}
-			throw new Error(
-				`trivy did not produce a report${lastRun?.stderr ? ` — ${lastRun.stderr.slice(0, 400)}` : ""}`,
-			);
-		}
-
-		if (!trivyExitOk(lastRun?.status ?? null)) {
-			const preview = normalizeReportText(raw).slice(0, 300);
-			throwScanFailure(lastRun?.status ?? null, lastRun?.stderr ?? "", preview);
-		}
-
-		const parsed = parseTrivyReport(raw);
-		const vulns = extractVulnerabilities(parsed);
-		return { ...countSeverities(vulns), vulns, raw };
-	} finally {
-		try {
-			rmSync(reportPath, { force: true });
-		} catch {
-			/* report may not exist */
-		}
+		({ raw, lastRun } = await runScanToReportFile(baseArgs(registryToken), image, reportDir));
+	} catch (e) {
+		console.error(`[trivy] scan failed for ${image}:`, e);
+		if (e instanceof Error && e.message.includes("ENOENT")) handleSpawnError(e);
+		throw e;
 	}
+
+	if (!trivyExitOk(lastRun.status)) {
+		const preview = normalizeReportText(raw).slice(0, 300);
+		throwScanFailure(lastRun.status, lastRun.signal, preview);
+	}
+
+	const parsed = parseTrivyReport(raw);
+	const vulns = extractVulnerabilities(parsed);
+	console.info(`[trivy] scan complete for ${image}: ${vulns.length} vulnerabilities`);
+	return { ...countSeverities(vulns), vulns, raw };
 }

@@ -10,6 +10,7 @@ import {
 	useSortedFilteredList,
 } from "@/hooks/use-sorted-filtered-list";
 import { formatBytes } from "@/lib/utils";
+import { VisibilityToggle, PublicBadge } from "@/components/visibility/visibility-toggle";
 
 export interface NpmPackageSummary {
 	name: string;
@@ -36,9 +37,11 @@ function npmSearchText(p: NpmPackageSummary) {
 
 interface Props {
 	packages: NpmPackageSummary[];
+	manageByName?: Record<string, boolean>;
+	publicByName?: Record<string, boolean>;
 }
 
-export function NpmPackageList({ packages }: Props) {
+export function NpmPackageList({ packages, manageByName = {}, publicByName = {} }: Props) {
 	const list = useSortedFilteredList(packages, npmSearchText, "name", COMPARATORS);
 
 	if (packages.length === 0) {
@@ -76,7 +79,10 @@ export function NpmPackageList({ packages }: Props) {
 					<Card key={p.name}>
 						<CardContent className="flex items-center justify-between gap-4">
 							<div>
-								<p className="font-mono font-semibold text-zinc-900 text-sm">{p.name}</p>
+								<div className="flex items-center gap-2 flex-wrap">
+									<p className="font-mono font-semibold text-zinc-900 text-sm">{p.name}</p>
+									{publicByName[p.name] && !manageByName[p.name] ? <PublicBadge /> : null}
+								</div>
 								<div className="flex gap-1 mt-1.5 flex-wrap">
 									{p.versions.map((v) => (
 										<Badge key={v} variant="default">
@@ -85,11 +91,22 @@ export function NpmPackageList({ packages }: Props) {
 									))}
 								</div>
 							</div>
-							<div className="text-right">
-								<p className="text-sm font-medium text-zinc-700">{formatBytes(p.size)}</p>
-								<p className="text-xs text-zinc-400">
-									{p.versions.length} version{p.versions.length !== 1 ? "s" : ""}
-								</p>
+							<div className="flex items-center gap-4">
+								{(manageByName[p.name] || publicByName[p.name]) && (
+									<VisibilityToggle
+										registryType="npm"
+										resourceKey={p.name}
+										initialPublic={!!publicByName[p.name]}
+										canManage={!!manageByName[p.name]}
+										compact
+									/>
+								)}
+								<div className="text-right">
+									<p className="text-sm font-medium text-zinc-700">{formatBytes(p.size)}</p>
+									<p className="text-xs text-zinc-400">
+										{p.versions.length} version{p.versions.length !== 1 ? "s" : ""}
+									</p>
+								</div>
 							</div>
 						</CardContent>
 					</Card>

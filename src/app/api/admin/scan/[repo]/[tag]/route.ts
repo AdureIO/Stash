@@ -5,6 +5,8 @@ import { scanImage, parseTrivyReport, extractVulnerabilities } from "@/lib/trivy
 import { db } from "@/lib/db";
 import { issueInternalRegistryToken } from "@/lib/token-auth";
 
+export const maxDuration = 600;
+
 interface Params {
 	params: Promise<{ repo: string; tag: string }>;
 }
@@ -36,6 +38,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 		});
 		return NextResponse.json({ ok: true, ...result, raw: undefined });
 	} catch (e) {
+		console.error(`[scan] ${repoName}:${tag} failed:`, e);
 		db.scans.insert({
 			repository: repoName,
 			tag,

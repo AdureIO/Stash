@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { getFeatures } from "@/lib/features";
 import { getActorUser } from "@/lib/auth";
 import { canManageResource, userCanViewResource } from "@/lib/access-control";
+import { isResourcePublic, mavenVisibilityKey } from "@/lib/visibility";
 import { mavenScanRepository } from "@/lib/maven-utils";
 import { getMavenArtifactDetail, parseMavenArtifactCoords } from "@/lib/maven-storage";
 import { buildScansByVersion } from "@/lib/maven-scans";
@@ -17,7 +18,7 @@ interface Props {
 }
 
 export default async function MavenArtifactPage({ params }: Props) {
-	if (!getFeatures().maven) redirect("/");
+	if (!getFeatures().maven) redirect("/dashboard");
 
 	const { coords } = await params;
 	const parsed = parseMavenArtifactCoords(coords);
@@ -33,6 +34,7 @@ export default async function MavenArtifactPage({ params }: Props) {
 	];
 	if (actor && !userCanViewResource(actor, mavenKeys)) notFound();
 	const canManage = actor ? canManageResource(actor, mavenKeys) : false;
+	const isPublic = isResourcePublic("maven", mavenVisibilityKey(parsed.groupId, parsed.artifactId));
 	const scansByVersion = buildScansByVersion(
 		parsed.groupId,
 		parsed.artifactId,
@@ -56,6 +58,8 @@ export default async function MavenArtifactPage({ params }: Props) {
 				mavenBaseUrl={mavenBaseUrl}
 				scansByVersion={scansByVersion}
 				isAdmin={canManage}
+				isPublic={isPublic}
+				visibilityResourceKey={mavenVisibilityKey(parsed.groupId, parsed.artifactId)}
 			/>
 		</div>
 	);

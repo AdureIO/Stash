@@ -1,13 +1,33 @@
 # Stash
 
-Self-hosted Docker, Maven, and NPM registry admin panel built with Next.js.
+Self-hosted Docker, Maven, and NPM artifact registry with a public catalog and admin panel.
 
 Stash combines:
 
-- A web admin UI for users, groups, policies, tokens, cleanup, and audit data.
+- A **public catalog** at `/` for browsing and pulling shared packages (no sign-in required).
+- An **admin panel** at `/dashboard` for users, groups, policies, tokens, cleanup, and audit data.
 - A Docker Registry v2-compatible endpoint (`/v2/*`) with token auth.
 - Maven package endpoints (`/api/maven/*`).
 - NPM registry endpoints (`/api/npm/*`).
+
+![Stash public catalog — screenshot placeholder](docs/screenshots/portal-catalog.png)
+
+> **Screenshot:** Add `docs/screenshots/portal-catalog.png` (recommended ~1440×900, **dark theme**) showing the public catalog with Docker, Maven, and/or NPM sections.
+
+## Brand identity
+
+Stash uses a consistent, product-first visual language across the public catalog and admin panel.
+
+| Element              | Usage                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Logo**             | Blue rounded mark with stacked layers + “Stash” wordmark (`StashLogo` component)                                                            |
+| **Primary palette**  | **Public catalog:** `zinc-950` / `zinc-900` surfaces, `zinc-100` text, blue accent · **Admin panel:** `zinc-50` content, `zinc-950` sidebar |
+| **Registry accents** | Docker → blue · Maven → purple · NPM → emerald (icons and hover states only)                                                                |
+| **Typography**       | System sans-serif for UI; monospace for package names, coords, and digests                                                                  |
+| **Public catalog**   | Dark (default) or **light mode** via header toggle — preference saved in `localStorage`; respects system theme on first visit               |
+| **Admin panel**      | Dark sidebar (`zinc-950`) + light content area; same logo and accent colors                                                                 |
+
+Public resources can be marked **public pull** in the admin panel; anonymous users can browse the catalog and pull/install without credentials. Push and publish always require authentication.
 
 ## Why Stash
 
@@ -18,6 +38,8 @@ Stash combines:
 
 ## Core Features
 
+- **Public catalog** — landing page at `/` lists Docker images, Maven artifacts, and NPM packages marked public pull.
+- **Per-resource visibility** — admins toggle public pull vs private on each image, Maven artifact, or NPM package.
 - Docker Registry proxy and token issuer.
 - Maven and NPM package hosting endpoints.
 - User management with role-based access.
@@ -46,7 +68,7 @@ Stash combines:
 ### Build
 
 ```bash
-docker buildx build --platform linux/amd64 -t adureio/stash:local --push .
+docker buildx build --platform linux/amd64 -t adureio/stash:latest --push .
 ```
 
 ```bash
@@ -58,7 +80,7 @@ docker run -d \
   adureio/stash:local
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000` — you land on the **public catalog**. Sign in via **Sign in** (top right) to reach the admin **dashboard** at `/dashboard`.
 
 On first boot, an admin user is created automatically. If `ADMIN_PASSWORD` is not set, a generated password is printed to container logs.
 
@@ -217,6 +239,8 @@ After changing `PUBLIC_URL`, redeploy/restart the container so the registry relo
 
 ## Registry/API Surfaces
 
+- Public catalog (UI): `/` and `/portal/docker/*`, `/portal/maven/*`, `/portal/npm/*`
+- Admin dashboard: `/dashboard`
 - Docker v2: `/v2/*`
 - Docker token endpoint: `/api/auth/token`
 - Maven: `/api/maven/*`

@@ -12,11 +12,11 @@ export default async function UsersPage() {
 	try {
 		await requirePanelAdmin();
 	} catch {
-		redirect("/");
+		redirect("/dashboard");
 	}
 
 	const actor = await getActorUser();
-	if (!actor) redirect("/");
+	if (!actor) redirect("/dashboard");
 
 	const users = filterUsersForActor(actor, db.users.findAll());
 	// Strip password_hash before serialising into the RSC payload

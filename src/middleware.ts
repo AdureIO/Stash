@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySession, SESSION_COOKIE } from "./lib/session";
 
 const PUBLIC_PATHS = [
+	"/",
 	"/login",
+	"/portal",
 	"/api/auth/token",
 	"/api/auth/login",
 	"/api/webhook/events",
@@ -15,6 +17,25 @@ const PUBLIC_PATHS = [
 
 export async function middleware(req: NextRequest) {
 	const { pathname } = req.nextUrl;
+
+	if (pathname === "/portal") {
+		return NextResponse.redirect(new URL("/", req.url));
+	}
+
+	// Signed-in users should not see login screens
+	const sessionToken = req.cookies.get(SESSION_COOKIE)?.value;
+	if (sessionToken && (pathname === "/login" || pathname === "/login/totp")) {
+		const session = await verifySession(sessionToken);
+		if (session) {
+			if (session.totpVerified === false) {
+				if (pathname === "/login") {
+					return NextResponse.redirect(new URL("/login/totp", req.url));
+				}
+			} else {
+				return NextResponse.redirect(new URL("/dashboard", req.url));
+			}
+		}
+	}
 
 	if (req.headers.get("x-internal") === "cron") {
 		if (

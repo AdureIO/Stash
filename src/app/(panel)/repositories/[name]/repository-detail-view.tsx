@@ -25,6 +25,7 @@ import { activityTimestamp } from "@/lib/activity-feed";
 import type { WebhookTarget } from "@/lib/db";
 import type { TagDetail } from "@/lib/registry";
 import { ScanStatusBadge } from "./scan-status-badge";
+import { VisibilityToggle } from "@/components/visibility/visibility-toggle";
 
 const TAG_SORT_OPTIONS = [
 	{ id: "tag", label: "Tag" },
@@ -50,6 +51,7 @@ interface Props {
 	lastPush: string | null;
 	details: TagDetail[];
 	isAdmin: boolean;
+	isPublic: boolean;
 	scansByTag: Record<string, ScanInfo>;
 	webhooks: WebhookTarget[];
 	eventStats: { total: number; pushes: number; pulls: number; deletes: number };
@@ -74,6 +76,7 @@ export function RepositoryDetailView({
 	lastPush,
 	details,
 	isAdmin,
+	isPublic,
 	scansByTag,
 	webhooks: initialWebhooks,
 	eventStats,
@@ -96,16 +99,26 @@ export function RepositoryDetailView({
 
 	const tagList = useSortedFilteredList(details, tagSearchText, "tag", TAG_COMPARATORS);
 
-	const headerActions = isAdmin ? (
+	const headerActions = (
 		<div className="flex items-center gap-2">
-			<Button variant="secondary" size="sm" onClick={() => setRenameOpen(true)}>
-				<Pencil size={14} /> Rename
-			</Button>
-			<Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>
-				<Trash2 size={14} /> Remove image
-			</Button>
+			<VisibilityToggle
+				registryType="docker"
+				resourceKey={repoName}
+				initialPublic={isPublic}
+				canManage={isAdmin}
+			/>
+			{isAdmin ? (
+				<>
+					<Button variant="secondary" size="sm" onClick={() => setRenameOpen(true)}>
+						<Pencil size={14} /> Rename
+					</Button>
+					<Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>
+						<Trash2 size={14} /> Remove image
+					</Button>
+				</>
+			) : null}
 		</div>
-	) : undefined;
+	);
 
 	async function handleRename() {
 		const name = newName.trim();

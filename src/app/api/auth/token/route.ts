@@ -1,7 +1,7 @@
 // Docker Registry Token Auth endpoint
 // Called by Docker daemon when authenticating against the registry
 import { NextRequest, NextResponse } from "next/server";
-import { issueToken } from "@/lib/token-auth";
+import { issueToken, issueAnonymousToken } from "@/lib/token-auth";
 
 export async function GET(req: NextRequest) {
 	return handleTokenRequest(req);
@@ -31,6 +31,11 @@ async function handleTokenRequest(req: NextRequest) {
 	}
 
 	if (!username || !password) {
+		if (scope) {
+			const anonymous = await issueAnonymousToken(scope);
+			if (anonymous) return NextResponse.json(anonymous);
+		}
+
 		const realm =
 			process.env.REGISTRY_AUTH_REALM ||
 			(process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL.replace(/\/$/, "")}/api/auth/token` : "");

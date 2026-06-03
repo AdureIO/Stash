@@ -12,11 +12,11 @@ export default async function NewUserPage() {
 	try {
 		await requirePanelAdmin();
 	} catch {
-		redirect("/");
+		redirect("/dashboard");
 	}
 
 	const actor = await getActorUser();
-	if (!actor) redirect("/");
+	if (!actor) redirect("/dashboard");
 
 	const allGroups = filterGroupsForActor(actor, db.groups.findAll()).map((g) => ({
 		id: g.id,

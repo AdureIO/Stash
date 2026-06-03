@@ -11,7 +11,7 @@ export default async function SettingsPage() {
 	try {
 		await requireSuperAdmin();
 	} catch {
-		redirect("/");
+		redirect("/dashboard");
 	}
 
 	const healthy = await healthCheck();

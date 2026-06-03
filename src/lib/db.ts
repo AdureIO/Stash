@@ -182,6 +182,16 @@ export interface CleanupRule {
 	last_deleted: number | null;
 }
 
+export type RegistryType = "docker" | "maven" | "npm";
+
+export interface PublicResource {
+	id: number;
+	registry_type: RegistryType;
+	resource_key: string;
+	created_at: string;
+	created_by: string | null;
+}
+
 // ---- Queries ----
 
 export const db = {
@@ -808,5 +818,31 @@ export const db = {
 					"SELECT registry_type, SUM(size_bytes) as total FROM (SELECT repository, registry_type, size_bytes FROM storage_snapshots GROUP BY repository, registry_type) GROUP BY registry_type",
 				)
 				.all() as { registry_type: string; total: number }[],
+	},
+
+	// Public resource catalog — sparse rows mean anonymous pull is allowed (never push).
+	publicResources: {
+		isPublic: (registryType: RegistryType, resourceKey: string) =>
+			!!getDb()
+				.prepare("SELECT 1 FROM public_resources WHERE registry_type = ? AND resource_key = ?")
+				.get(registryType, resourceKey),
+		listAll: () =>
+			getDb()
+				.prepare("SELECT * FROM public_resources ORDER BY registry_type, resource_key")
+				.all() as PublicResource[],
+		listByType: (registryType: RegistryType) =>
+			getDb()
+				.prepare("SELECT * FROM public_resources WHERE registry_type = ? ORDER BY resource_key")
+				.all(registryType) as PublicResource[],
+		markPublic: (registryType: RegistryType, resourceKey: string, createdBy?: string) =>
+			getDb()
+				.prepare(
+					"INSERT INTO public_resources (registry_type, resource_key, created_by) VALUES (?, ?, ?) ON CONFLICT(registry_type, resource_key) DO UPDATE SET created_by = excluded.created_by",
+				)
+				.run(registryType, resourceKey, createdBy ?? null),
+		markPrivate: (registryType: RegistryType, resourceKey: string) =>
+			getDb()
+				.prepare("DELETE FROM public_resources WHERE registry_type = ? AND resource_key = ?")
+				.run(registryType, resourceKey),
 	},
 };
