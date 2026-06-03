@@ -10,7 +10,7 @@ export async function PortalHeader() {
 	const signedIn = session && session.totpVerified !== false;
 
 	return (
-		<header className="portal-header sticky top-0 z-20 backdrop-blur-md">
+		<header className="portal-header sticky top-0 z-20">
 			<div className="max-w-6xl mx-auto px-6 py-3.5 flex items-center justify-between gap-4">
 				<Link href="/" className="flex items-center gap-2.5 shrink-0">
 					<StashLogo size="sm" showWordmark wordmarkClassName="text-sm portal-wordmark" />

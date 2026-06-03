@@ -76,10 +76,10 @@ export default async function PortalDockerDetailPage({ params }: Props) {
 											<PortalBadge variant="info">{t.tag}</PortalBadge>
 										</PortalTd>
 										<PortalTd>{formatBytes(t.size)}</PortalTd>
-										<PortalTd className="text-zinc-500">
+										<PortalTd className="portal-td-muted">
 											{t.created ? formatDate(t.created) : "—"}
 										</PortalTd>
-										<PortalTd className="font-mono text-xs text-zinc-500">
+										<PortalTd className="font-mono text-xs portal-td-muted">
 											{shortDigest(t.digest)}
 										</PortalTd>
 									</PortalTr>

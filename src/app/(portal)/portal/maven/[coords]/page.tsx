@@ -77,10 +77,12 @@ export default async function PortalMavenDetailPage({ params }: Props) {
 											<PortalBadge variant="purple">{v.version}</PortalBadge>
 										</PortalTd>
 										<PortalTd>{formatBytes(v.size)}</PortalTd>
-										<PortalTd className="text-zinc-500">
+										<PortalTd className="portal-td-muted">
 											{v.modified ? formatDate(v.modified) : "—"}
 										</PortalTd>
-										<PortalTd className="text-xs text-zinc-500">{v.files.length} file(s)</PortalTd>
+										<PortalTd className="text-xs portal-td-muted">
+											{v.files.length} file(s)
+										</PortalTd>
 									</PortalTr>
 								))}
 							</PortalTbody>
