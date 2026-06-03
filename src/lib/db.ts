@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "fs";
 import path from "path";
+import { buildActivityFeed } from "./activity-feed";
 import { EVENTS_PUBLIC_SQL } from "./registry-events";
 import { webhookMatchesRepo } from "./webhook-match";
 let _db: Database.Database | null = null;
@@ -154,6 +155,18 @@ export interface WebhookTarget {
 	created_at: string;
 	last_triggered: string | null;
 	last_status: number | null;
+}
+
+export interface WebhookDelivery {
+	id: number;
+	webhook_id: number;
+	webhook_name: string;
+	repository: string;
+	tag: string | null;
+	digest: string | null;
+	registry_action: string;
+	status: number;
+	delivered_at: string;
 }
 
 export interface CleanupRule {
@@ -335,6 +348,32 @@ export const db = {
 				.all(limit) as { repository: string; events: number }[],
 	},
 
+	// Registry events + security scans + webhook deliveries (unified activity timeline)
+	activity: {
+		findRecent: (limit = 200) => {
+			const fetch = Math.min(limit * 2, 400);
+			const events = db.events.findRecent(fetch);
+			const scans = db.scans.recent(fetch);
+			const webhooks = db.webhookDeliveries.recent(fetch);
+			return buildActivityFeed(events, scans, webhooks, limit);
+		},
+		findByRepo: (repository: string, limit = 50) => {
+			const fetch = Math.min(limit * 2, 200);
+			const events = db.events.findByRepo(repository, fetch);
+			const scans = db.scans.findByRepository(repository, fetch);
+			const webhooks = db.webhookDeliveries.findByRepository(repository, fetch);
+			return buildActivityFeed(events, scans, webhooks, limit);
+		},
+		stats: () => {
+			const events = db.events.stats();
+			const scans = getDb().prepare("SELECT COUNT(*) as count FROM scan_results").get() as { count: number };
+			const webhooks = getDb().prepare("SELECT COUNT(*) as count FROM webhook_deliveries").get() as {
+				count: number;
+			};
+			return { ...events, scans: scans.count, webhooks: webhooks.count };
+		},
+	},
+
 	// Webhooks
 	webhooks: {
 		findAll: () =>
@@ -373,6 +412,33 @@ export const db = {
 			(getDb().prepare("SELECT * FROM webhook_targets ORDER BY created_at DESC").all() as WebhookTarget[]).filter(
 				(w) => webhookMatchesRepo(w.repository_pattern, repo),
 			),
+	},
+
+	webhookDeliveries: {
+		insert: (d: Omit<WebhookDelivery, "id">) =>
+			getDb()
+				.prepare(
+					`INSERT INTO webhook_deliveries (webhook_id, webhook_name, repository, tag, digest, registry_action, status, delivered_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				)
+				.run(
+					d.webhook_id,
+					d.webhook_name,
+					d.repository,
+					d.tag,
+					d.digest,
+					d.registry_action,
+					d.status,
+					d.delivered_at,
+				),
+		recent: (limit = 50) =>
+			getDb()
+				.prepare("SELECT * FROM webhook_deliveries ORDER BY delivered_at DESC LIMIT ?")
+				.all(limit) as WebhookDelivery[],
+		findByRepository: (repository: string, limit = 50) =>
+			getDb()
+				.prepare("SELECT * FROM webhook_deliveries WHERE repository = ? ORDER BY delivered_at DESC LIMIT ?")
+				.all(repository, limit) as WebhookDelivery[],
 	},
 
 	// Cleanup rules

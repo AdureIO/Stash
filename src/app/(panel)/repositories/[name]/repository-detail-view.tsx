@@ -20,8 +20,11 @@ import { apiFetch } from "@/lib/api";
 import { formatBytes, formatRelative, shortDigest, formatDate } from "@/lib/utils";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { compareDates, compareNumbers, compareStrings, useSortedFilteredList } from "@/hooks/use-sorted-filtered-list";
+import type { ActivityFeedItem } from "@/lib/activity-feed";
+import { activityTimestamp } from "@/lib/activity-feed";
 import type { WebhookTarget } from "@/lib/db";
 import type { TagDetail } from "@/lib/registry";
+import { ScanStatusBadge } from "./scan-status-badge";
 
 const TAG_SORT_OPTIONS = [
 	{ id: "tag", label: "Tag" },
@@ -39,15 +42,6 @@ function tagSearchText(t: TagDetail) {
 	return `${t.tag} ${t.digest || ""} ${t.os || ""} ${t.architecture || ""}`;
 }
 
-interface EventRow {
-	id: number;
-	action: string;
-	repository: string;
-	tag: string | null;
-	actor: string | null;
-	timestamp: string;
-}
-
 interface Props {
 	repoName: string;
 	subtitle: string;
@@ -60,13 +54,15 @@ interface Props {
 	webhooks: WebhookTarget[];
 	eventStats: { total: number; pushes: number; pulls: number; deletes: number };
 	activityByAction: { day: string; action: string; count: number }[];
-	recentEvents: EventRow[];
+	recentActivity: ActivityFeedItem[];
 }
 
 const actionBadge = (action: string) => {
 	if (action === "push") return <Badge variant="success">push</Badge>;
 	if (action === "pull") return <Badge variant="info">pull</Badge>;
 	if (action === "delete") return <Badge variant="danger">delete</Badge>;
+	if (action === "scan") return <Badge variant="purple">scan</Badge>;
+	if (action === "webhook") return <Badge variant="warning">webhook</Badge>;
 	return <Badge>{action}</Badge>;
 };
 
@@ -82,7 +78,7 @@ export function RepositoryDetailView({
 	webhooks: initialWebhooks,
 	eventStats,
 	activityByAction,
-	recentEvents,
+	recentActivity,
 }: Props) {
 	const router = useRouter();
 	const [webhooks, setWebhooks] = useState(initialWebhooks);
@@ -446,26 +442,80 @@ export function RepositoryDetailView({
 						</Link>
 					</CardHeader>
 					<div className="divide-y divide-zinc-50 max-h-80 overflow-y-auto">
-						{recentEvents.length === 0 && (
-							<p className="px-5 py-8 text-sm text-center text-zinc-400">No events yet</p>
+						{recentActivity.length === 0 && (
+							<p className="px-5 py-8 text-sm text-center text-zinc-400">No activity yet</p>
 						)}
-						{recentEvents.map((e) => (
-							<div key={e.id} className="px-5 py-3 flex items-start justify-between gap-2">
-								<div className="min-w-0">
-									<p className="text-sm font-medium text-zinc-800">
-										{e.tag ? (
-											<span className="font-mono">:{e.tag}</span>
-										) : (
-											<span className="text-zinc-400">manifest</span>
-										)}
-									</p>
-									<p className="text-xs text-zinc-400 mt-0.5">
-										{e.actor || "unknown"} · {formatRelative(e.timestamp)}
-									</p>
+						{recentActivity.map((item) => {
+							const key =
+								item.kind === "registry"
+									? `e-${item.id}`
+									: item.kind === "scan"
+										? `s-${item.id}`
+										: `w-${item.id}`;
+							if (item.kind === "webhook") {
+								return (
+									<div key={key} className="px-5 py-3 flex items-start justify-between gap-2">
+										<div className="min-w-0">
+											<p className="text-sm font-medium text-zinc-800">
+												{item.tag ? (
+													<span className="font-mono">:{item.tag}</span>
+												) : (
+													<span className="text-zinc-400">{item.registry_action}</span>
+												)}
+											</p>
+											<p className="text-xs text-zinc-400 mt-0.5 truncate">
+												{item.webhook_name} · {formatRelative(item.delivered_at)}
+											</p>
+										</div>
+										<div className="flex flex-col items-end gap-1 shrink-0">
+											{actionBadge("webhook")}
+											{item.status >= 200 && item.status < 300 ? (
+												<Badge variant="success">{item.status}</Badge>
+											) : item.status === 0 ? (
+												<Badge variant="danger">Failed</Badge>
+											) : (
+												<Badge variant="warning">{item.status}</Badge>
+											)}
+										</div>
+									</div>
+								);
+							}
+							if (item.kind === "scan") {
+								return (
+									<div key={key} className="px-5 py-3 flex items-start justify-between gap-2">
+										<div className="min-w-0">
+											<p className="text-sm font-medium text-zinc-800">
+												<span className="font-mono">:{item.tag}</span>
+											</p>
+											<p className="text-xs text-zinc-400 mt-0.5">
+												{formatRelative(item.scanned_at)}
+											</p>
+										</div>
+										<div className="flex flex-col items-end gap-1 shrink-0">
+											{actionBadge("scan")}
+											<ScanStatusBadge scan={item} />
+										</div>
+									</div>
+								);
+							}
+							return (
+								<div key={key} className="px-5 py-3 flex items-start justify-between gap-2">
+									<div className="min-w-0">
+										<p className="text-sm font-medium text-zinc-800">
+											{item.tag ? (
+												<span className="font-mono">:{item.tag}</span>
+											) : (
+												<span className="text-zinc-400">manifest</span>
+											)}
+										</p>
+										<p className="text-xs text-zinc-400 mt-0.5">
+											{item.actor || "unknown"} · {formatRelative(activityTimestamp(item))}
+										</p>
+									</div>
+									{actionBadge(item.action)}
 								</div>
-								{actionBadge(e.action)}
-							</div>
-						))}
+							);
+						})}
 					</div>
 				</Card>
 			</div>

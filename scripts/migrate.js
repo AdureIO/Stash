@@ -71,6 +71,21 @@ db.exec(`
     last_status INTEGER
   );
 
+  CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    webhook_id INTEGER NOT NULL REFERENCES webhook_targets(id) ON DELETE CASCADE,
+    webhook_name TEXT NOT NULL,
+    repository TEXT NOT NULL,
+    tag TEXT,
+    digest TEXT,
+    registry_action TEXT NOT NULL,
+    status INTEGER NOT NULL,
+    delivered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_delivered_at ON webhook_deliveries(delivered_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_repository ON webhook_deliveries(repository);
+
   CREATE TABLE IF NOT EXISTS cleanup_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,

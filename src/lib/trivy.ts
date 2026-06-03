@@ -232,6 +232,16 @@ export async function scanImage(
 	return enqueueScan(() => scanImageInner(registryUrl, repo, tag, registryToken));
 }
 
+/** Run a registry image scan without queueing (caller manages concurrency). */
+export async function scanImageDirect(
+	registryUrl: string,
+	repo: string,
+	tag: string,
+	registryToken?: string,
+): Promise<ScanSummary & { raw: string }> {
+	return scanImageInner(registryUrl, repo, tag, registryToken);
+}
+
 function fsBaseArgs(): string[] {
 	return ["fs", "--scanners", "vuln", "--format", "json", "--quiet", "--no-progress", ...skipDbUpdateArgs()];
 }
@@ -320,7 +330,7 @@ async function scanImageInner(
 	const host = registryUrl.replace(/^https?:\/\//, "");
 	validateImageRef(host, "registry host");
 
-	const image = `${host}/${repo}:${tag}`;
+	const image = tag.startsWith("sha256:") ? `${host}/${repo}@${tag}` : `${host}/${repo}:${tag}`;
 	const cacheDir = process.env.TRIVY_CACHE_DIR ?? DEFAULT_CACHE_DIR;
 	const reportDir = resolve(cacheDir, "reports");
 	mkdirSync(reportDir, { recursive: true });

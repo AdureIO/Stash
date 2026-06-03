@@ -62,7 +62,7 @@ export default async function RepositoryDetailPage({ params }: Props) {
 	const webhooks = db.webhooks.findForRepo(repoName);
 	const eventStats = db.events.statsByRepo(repoName);
 	const activityByAction = db.events.last30DaysByActionForRepo(repoName);
-	const recentEvents = db.events.findByRepo(repoName, 15);
+	const recentActivity = db.activity.findByRepo(repoName, 15);
 
 	return (
 		<div>
@@ -85,7 +85,7 @@ export default async function RepositoryDetailPage({ params }: Props) {
 				webhooks={webhooks}
 				eventStats={eventStats}
 				activityByAction={activityByAction}
-				recentEvents={recentEvents}
+				recentActivity={recentActivity}
 			/>
 		</div>
 	);

@@ -1,7 +1,7 @@
 // Receives push/pull/delete events from the registry notification system
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { isInternalRegistryPull } from "@/lib/registry-events";
+import { db, type WebhookTarget } from "@/lib/db";
+import { isInternalRegistryPull, isLayerPushEvent, resolveTaggedPushTarget } from "@/lib/registry-events";
 import { queueScanOnPush } from "@/lib/scan-runner";
 
 interface RegistryEvent {
@@ -65,23 +65,28 @@ export async function POST(req: NextRequest) {
 		// UI/cron manifest reads — not user activity
 		if (isInternalRegistryPull({ action: event.action, actor, ip })) continue;
 
-		db.events.insert({
-			action: event.action,
-			repository: event.target.repository,
-			tag: event.target.tag || null,
-			digest: event.target.digest || null,
-			actor,
-			ip,
-			size: event.target.size || event.target.length || null,
-			timestamp: event.timestamp,
-			raw: JSON.stringify(event),
-		});
+		const pushRef = event.action === "push" ? resolveTaggedPushTarget(event.target) : null;
+
+		// Layer/blob pushes — keep webhooks, skip activity log noise
+		if (!isLayerPushEvent({ action: event.action, tag: event.target.tag, url: event.target.url })) {
+			db.events.insert({
+				action: event.action,
+				repository: event.target.repository,
+				tag: pushRef || event.target.tag || null,
+				digest: event.target.digest || null,
+				actor,
+				ip,
+				size: event.target.size || event.target.length || null,
+				timestamp: event.timestamp,
+				raw: JSON.stringify(event),
+			});
+		}
+
+		if (pushRef) {
+			queueScanOnPush(event.target.repository, pushRef);
+		}
 
 		await forwardToWebhooks(event);
-
-		if (event.action === "push" && event.target.tag) {
-			queueScanOnPush(event.target.repository, event.target.tag);
-		}
 	}
 
 	return NextResponse.json({ ok: true });
@@ -113,6 +118,8 @@ async function forwardToWebhooks(event: RegistryEvent) {
 		const headers: Record<string, string> = { "Content-Type": "application/json" };
 		if (target.secret) headers["X-Webhook-Secret"] = target.secret;
 
+		const deliveredAt = new Date().toISOString();
+		let status = 0;
 		try {
 			const res = await fetch(target.url, {
 				method: "POST",
@@ -120,15 +127,34 @@ async function forwardToWebhooks(event: RegistryEvent) {
 				body: payload,
 				signal: AbortSignal.timeout(10000),
 			});
+			status = res.status;
 			db.webhooks.update(target.id, {
-				last_triggered: new Date().toISOString(),
-				last_status: res.status,
+				last_triggered: deliveredAt,
+				last_status: status,
 			});
 		} catch {
 			db.webhooks.update(target.id, {
-				last_triggered: new Date().toISOString(),
+				last_triggered: deliveredAt,
 				last_status: 0,
 			});
 		}
+
+		if (!isLayerPushEvent({ action: event.action, tag: event.target.tag, url: event.target.url })) {
+			logWebhookDelivery(target, event, status, deliveredAt);
+		}
 	}
+}
+
+function logWebhookDelivery(target: WebhookTarget, event: RegistryEvent, status: number, deliveredAt: string) {
+	const tag = event.action === "push" ? resolveTaggedPushTarget(event.target) : event.target.tag || null;
+	db.webhookDeliveries.insert({
+		webhook_id: target.id,
+		webhook_name: target.name,
+		repository: event.target.repository,
+		tag,
+		digest: event.target.digest || null,
+		registry_action: event.action,
+		status,
+		delivered_at: deliveredAt,
+	});
 }

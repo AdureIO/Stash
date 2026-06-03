@@ -1,6 +1,7 @@
 // Regenerate /data/registry.yml at runtime (e.g., after read-only toggle)
-import { writeFileSync, readFileSync } from "fs";
+import { writeFileSync } from "fs";
 import { execSync } from "child_process";
+import { getRegistryWebhookEventsUrl } from "./registry-internal";
 
 const CONFIG_PATH = "/data/registry.yml";
 
@@ -19,7 +20,7 @@ export function regenerateConfig(readonly: boolean) {
 	const registrySecret = requireEnv("REGISTRY_SECRET", "dev-registry-secret");
 	const webhookSecret = requireEnv("WEBHOOK_SECRET", "dev-webhook-secret");
 	const authRealm = (process.env.PUBLIC_URL || "http://localhost:3000") + "/api/auth/token";
-	const port = process.env.PORT || "3000";
+	const webhookUrl = getRegistryWebhookEventsUrl();
 
 	const cfg = `version: 0.1
 log:
@@ -49,7 +50,7 @@ auth:
 notifications:
   endpoints:
     - name: admin
-      url: http://127.0.0.1:${port}/api/webhook/events
+      url: ${webhookUrl}
       headers:
         Authorization: [Bearer ${webhookSecret}]
       timeout: 5s

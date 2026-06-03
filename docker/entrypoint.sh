@@ -147,6 +147,7 @@ auth:
 notifications:
   endpoints:
     - name: admin
+      # front-proxy :3000 → Next :3001 (must match src/lib/registry-internal.ts)
       url: http://127.0.0.1:3000/api/webhook/events
       headers:
         Authorization: [Bearer ${WEBHOOK_SECRET}]
