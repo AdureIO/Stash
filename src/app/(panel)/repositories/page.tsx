@@ -6,7 +6,7 @@ import type { ScanInfo } from "./[name]/scan-status-badge";
 import { getFeatures } from "@/lib/features";
 import { redirect } from "next/navigation";
 import { RepositoryList, type RepoSummary } from "./repository-list";
-import { getActorUser } from "@/lib/auth";
+import { getActorUser, requireSession } from "@/lib/auth";
 import { dockerResourceKeys, filterResourcesByViewAccess } from "@/lib/access-control";
 
 export const dynamic = "force-dynamic";
@@ -62,11 +62,15 @@ async function getRepoSummaries(repos: string[]): Promise<RepoSummary[]> {
 
 export default async function RepositoriesPage() {
 	if (!getFeatures().docker) redirect("/dashboard");
-	const actor = await getActorUser();
-	let repos = await listRepositories();
-	if (actor) {
-		repos = filterResourcesByViewAccess(actor, repos, (name) => dockerResourceKeys(name));
+	try {
+		await requireSession();
+	} catch {
+		redirect("/login");
 	}
+	const actor = await getActorUser();
+	if (!actor) redirect("/login");
+	let repos = await listRepositories();
+	repos = filterResourcesByViewAccess(actor, repos, (name) => dockerResourceKeys(name));
 	const summaries = await getRepoSummaries(repos);
 
 	return (

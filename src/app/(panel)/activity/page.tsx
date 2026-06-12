@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
+import { requireSession } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, Thead, Th, Tbody, Tr, Td } from "@/components/ui/table";
@@ -26,6 +28,12 @@ const webhookStatusBadge = (status: number) => {
 };
 
 export default async function ActivityPage() {
+	try {
+		await requireSession();
+	} catch {
+		redirect("/login");
+	}
+
 	const features = getFeatures();
 	const items = features.docker
 		? db.activity.findRecent(200)

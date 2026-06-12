@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getActorUser } from "@/lib/auth";
+import { getActorUser, requireSession } from "@/lib/auth";
 import { canManageResource, dockerResourceKeys, mavenResourceKeys, npmResourceKeys } from "@/lib/access-control";
 import { logAction } from "@/lib/audit";
 import type { RegistryType } from "@/lib/db";
@@ -17,10 +17,7 @@ function resolveResourceKeys(registryType: RegistryType, resourceKey: string): s
 	if (registryType === "maven") {
 		const parsed = parseMavenArtifactCoords(resourceKey.replace(/^maven:/, ""));
 		if (!parsed) return [resourceKey];
-		return [
-			mavenVisibilityKey(parsed.groupId, parsed.artifactId),
-			`maven:${parsed.groupId}:${parsed.artifactId}`,
-		];
+		return [mavenVisibilityKey(parsed.groupId, parsed.artifactId), `maven:${parsed.groupId}:${parsed.artifactId}`];
 	}
 	return npmResourceKeys(resourceKey);
 }
@@ -38,6 +35,17 @@ function normalizeResourceKey(registryType: RegistryType, resourceKey: string): 
 }
 
 export async function GET(req: NextRequest) {
+	try {
+		await requireSession();
+	} catch (e) {
+		const message = e instanceof Error ? e.message : "Unauthorized";
+		const status = message === "Forbidden" ? 403 : 401;
+		return NextResponse.json(
+			{ error: message === "TOTP required" ? "TOTP verification required" : "Unauthorized" },
+			{ status },
+		);
+	}
+
 	const { searchParams } = req.nextUrl;
 	const registryType = searchParams.get("registryType") as RegistryType | null;
 	const resourceKey = searchParams.get("resourceKey");
@@ -52,6 +60,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+	try {
+		await requireSession();
+	} catch (e) {
+		const message = e instanceof Error ? e.message : "Unauthorized";
+		return NextResponse.json(
+			{ error: message === "TOTP required" ? "TOTP verification required" : "Unauthorized" },
+			{ status: 401 },
+		);
+	}
+
 	const actor = await getActorUser();
 	if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

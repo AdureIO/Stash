@@ -7,8 +7,10 @@ export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
 	const session = await getSession();
-	if (session?.totpVerified !== false) redirect("/dashboard");
-	if (session && session.totpVerified === false) redirect("/login/totp");
+	if (session) {
+		if (session.totpVerified === false) redirect("/login/totp");
+		redirect("/dashboard");
+	}
 
 	const ssoProviders = db.sso.findActive().map((p) => ({ id: p.id, name: p.name, type: p.type }));
 	return <LoginForm ssoProviders={ssoProviders} />;
