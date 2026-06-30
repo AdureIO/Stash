@@ -654,13 +654,46 @@ export async function renameRepository(oldName: string, newName: string): Promis
 	return { copied, failed };
 }
 
-// Get total storage used per repository (sum of unique layer sizes)
+function collectReferencedBlobSizes(repoPath: string, manifestDigest: string, seenDigests: Set<string>): number {
+	const body = readManifestBlob(repoPath, manifestDigest);
+	if (!body) return 0;
+	const mediaType = typeof body.mediaType === "string" ? body.mediaType : "";
+	if (isManifestListBody(mediaType, body)) {
+		let total = 0;
+		for (const child of body.manifests as ManifestDescriptor[]) {
+			total += collectReferencedBlobSizes(repoPath, child.digest, seenDigests);
+		}
+		return total;
+	}
+	const manifest = asManifestV2(body);
+	if (!manifest) return 0;
+	let total = 0;
+	for (const layer of manifest.layers) {
+		if (!seenDigests.has(layer.digest)) {
+			seenDigests.add(layer.digest);
+			total += layer.size;
+		}
+	}
+	if (!seenDigests.has(manifest.config.digest)) {
+		seenDigests.add(manifest.config.digest);
+		total += manifest.config.size;
+	}
+	return total;
+}
+
+// Get total storage used per repository (sum of unique layer sizes across all tags/architectures)
 export async function getRepositorySize(repo: string): Promise<number> {
 	const tags = await listTags(repo);
 	const seenDigests = new Set<string>();
+	const repoPath = normalizeRepoPath(repo);
 	let total = 0;
 
 	for (const tag of tags) {
+		const digest = digestFromTagLink(repoPath, tag);
+		if (digest) {
+			total += collectReferencedBlobSizes(repoPath, digest, seenDigests);
+			continue;
+		}
 		const m = await getManifest(repo, tag);
 		if (!m) continue;
 		for (const layer of m.manifest.layers) {
