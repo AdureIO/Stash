@@ -16,13 +16,18 @@ function requireEnv(key: string, fallback: string): string {
 	return v;
 }
 
-export function regenerateConfig(readonly: boolean) {
+/** Quote values so YAML parsers handle URLs and secrets safely. */
+export function yamlQuote(value: string): string {
+	return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+export function buildRegistryYaml(readonly: boolean): string {
 	const registrySecret = requireEnv("REGISTRY_SECRET", "dev-registry-secret");
 	const webhookSecret = requireEnv("WEBHOOK_SECRET", "dev-webhook-secret");
 	const authRealm = (process.env.PUBLIC_URL || "http://localhost:3000") + "/api/auth/token";
 	const webhookUrl = getRegistryWebhookEventsUrl();
 
-	const cfg = `version: 0.1
+	return `version: 0.1
 log:
   level: warn
 storage:
@@ -31,7 +36,7 @@ storage:
   delete:
     enabled: true
   maintenance:
-    readOnly:
+    readonly:
       enabled: ${readonly}
     uploadpurging:
       enabled: true
@@ -40,27 +45,39 @@ storage:
       dryrun: false
 http:
   addr: :5000
-  secret: ${registrySecret}
+  secret: ${yamlQuote(registrySecret)}
 auth:
   token:
-    realm: ${authRealm}
+    realm: ${yamlQuote(authRealm)}
     service: docker-registry
     issuer: registry-admin
     rootcertbundle: /data/auth.crt
 notifications:
   endpoints:
     - name: admin
-      url: ${webhookUrl}
+      url: ${yamlQuote(webhookUrl)}
       headers:
-        Authorization: [Bearer ${webhookSecret}]
+        Authorization: [${yamlQuote(`Bearer ${webhookSecret}`)}]
       timeout: 5s
       threshold: 1
       backoff: 2s
 `;
-	writeFileSync(CONFIG_PATH, cfg);
+}
+
+export function regenerateConfig(readonly: boolean) {
+	writeFileSync(CONFIG_PATH, buildRegistryYaml(readonly));
 
 	// Signal supervisord to restart registry if available
 	try {
 		execSync("supervisorctl -c /tmp/supervisord.conf restart registry", { timeout: 10000, stdio: "pipe" });
 	} catch {}
+}
+
+/** Env for registry CLI — strip Stash REGISTRY_* vars that collide with distribution overrides. */
+export function registryCliEnv(): NodeJS.ProcessEnv {
+	const env = { ...process.env };
+	for (const key of Object.keys(env)) {
+		if (key.startsWith("REGISTRY_")) delete env[key];
+	}
+	return env;
 }

@@ -264,7 +264,8 @@ export function SettingsPanel({ healthy, publicUrl, registryUrl, autoScanOnPush:
 				</CardHeader>
 				<CardContent className="space-y-3">
 					<p className="text-xs text-zinc-500">
-						Remove unreferenced blobs from storage. Stops the registry briefly during collection.
+						Remove unreferenced blobs from storage. Temporarily switches the registry to read-only during
+						collection.
 					</p>
 					<div className="flex gap-2">
 						<Button variant="secondary" size="sm" onClick={() => runGc(true)} disabled={gcLoading}>
@@ -276,7 +277,7 @@ export function SettingsPanel({ healthy, publicUrl, registryUrl, autoScanOnPush:
 					</div>
 					{gcResult && (
 						<div
-							className={`rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-40 overflow-y-auto ${gcResult.ok ? "bg-zinc-900 text-zinc-300" : "bg-red-50 text-red-800"}`}
+							className={`rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto ${gcResult.ok ? "bg-zinc-900 text-zinc-300" : "bg-red-50 text-red-800"}`}
 						>
 							{gcResult.output || "(no output)"}
 						</div>

@@ -12,7 +12,14 @@ cron.schedule("0 2 * * *", async () => {
 		const res = await fetch(`${base}/api/admin/cleanup-cron`, { method: "POST", headers });
 		if (!res.ok) throw new Error(`status ${res.status}`);
 		const body = await res.json();
-		console.log(`[cron] Cleanup done — ${body.deleted ?? 0} tags deleted`);
+		const gcNote = body.gc?.skipped
+			? ""
+			: body.gc?.ok === false
+				? ", GC failed"
+				: body.deleted > 0
+					? ", GC ok"
+					: "";
+		console.log(`[cron] Cleanup done — ${body.deleted ?? 0} tags deleted${gcNote}`);
 	} catch (e) {
 		console.error("[cron] Cleanup failed:", e.message || e);
 	}

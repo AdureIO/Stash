@@ -2,10 +2,13 @@
 import { db } from "./db";
 import { listRepositories, listTags, getManifest, getImageConfig, deleteTag } from "./registry";
 import { matchesPattern } from "./utils";
+import { getFeatures } from "./features";
+import { runGarbageCollection } from "./gc";
 
 export interface CleanupResult {
 	deleted: number;
 	repos: number;
+	gc?: { ok: boolean; output: string; skipped?: boolean };
 }
 
 export async function runCleanup(ruleId?: number): Promise<CleanupResult> {
@@ -55,5 +58,18 @@ export async function runCleanup(ruleId?: number): Promise<CleanupResult> {
 		db.cleanup.update(rule.id, { last_run: new Date().toISOString(), last_deleted: deleted });
 	}
 
-	return { deleted, repos: reposProcessed };
+	let gc: CleanupResult["gc"];
+	if (deleted > 0 && getFeatures().docker) {
+		const gcResult = await runGarbageCollection(false);
+		gc = { ok: gcResult.ok, output: gcResult.output };
+		if (!gcResult.ok) {
+			console.error("[cleanup] Post-cleanup garbage collection failed:", gcResult.output);
+		}
+	} else if (deleted > 0) {
+		gc = { ok: true, output: "Skipped — Docker registry is disabled.", skipped: true };
+	} else {
+		gc = { ok: true, output: "Skipped — no tags were deleted.", skipped: true };
+	}
+
+	return { deleted, repos: reposProcessed, gc };
 }

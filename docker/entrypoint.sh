@@ -127,6 +127,8 @@ storage:
   delete:
     enabled: true
   maintenance:
+    readonly:
+      enabled: false
     uploadpurging:
       enabled: true
       age: 168h
@@ -135,11 +137,11 @@ storage:
 
 http:
   addr: :5000
-  secret: ${REGISTRY_SECRET}
+  secret: "${REGISTRY_SECRET}"
 
 auth:
   token:
-    realm: ${REGISTRY_AUTH_REALM}
+    realm: "${REGISTRY_AUTH_REALM}"
     service: docker-registry
     issuer: registry-admin
     rootcertbundle: /data/auth.crt
@@ -148,9 +150,9 @@ notifications:
   endpoints:
     - name: admin
       # front-proxy :3000 → Next :3001 (must match src/lib/registry-internal.ts)
-      url: http://127.0.0.1:3000/api/webhook/events
+      url: "http://127.0.0.1:3000/api/webhook/events"
       headers:
-        Authorization: [Bearer ${WEBHOOK_SECRET}]
+        Authorization: ["Bearer ${WEBHOOK_SECRET}"]
       timeout: 5s
       threshold: 1
       backoff: 2s
@@ -215,6 +217,17 @@ nodaemon=true
 logfile=/dev/null
 logfile_maxbytes=0
 pidfile=/data/supervisord.pid
+
+[unix_http_server]
+file=/data/supervisor.sock
+chmod=0700
+chown=stash:stash
+
+[rpcinterface:supervisor]
+supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
+
+[supervisorctl]
+serverurl=unix:///data/supervisor.sock
 
 [program:nextjs]
 command=node /app/server.js
