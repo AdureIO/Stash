@@ -1,10 +1,11 @@
 import { existsSync } from "fs";
-import { execSync, spawnSync } from "child_process";
+import { execSync } from "child_process";
 import { db } from "./db";
-import { regenerateConfig, registryCliEnv } from "./registry-config";
+import { regenerateConfig } from "./registry-config";
+import { listRepositories, pruneBrokenTags } from "./registry";
+import { getBlobsRoots, getRepositoriesRoots, runStashGarbageCollection } from "./registry-layout";
 
 const SUPERVISOR_CONF = "/tmp/supervisord.conf";
-const REGISTRY_BIN = "/usr/local/bin/registry";
 const REGISTRY_CONFIG = "/data/registry.yml";
 
 export interface GcResult {
@@ -32,30 +33,19 @@ function supervisorctl(cmd: string): { ok: boolean; output: string } {
 	}
 }
 
-function runRegistryGc(args: string[]): { ok: boolean; output: string; code: number | null } {
-	const result = spawnSync(REGISTRY_BIN, ["garbage-collect", ...args, REGISTRY_CONFIG], {
-		encoding: "utf8",
-		timeout: 300_000,
-		env: registryCliEnv(),
-	});
-	const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
-	return { ok: result.status === 0, output, code: result.status };
-}
-
-export async function runGarbageCollection(dryRun = false): Promise<GcResult> {
-	const gcArgs = dryRun ? ["--dry-run"] : ["--delete-untagged"];
-
-	if (!existsSync(REGISTRY_BIN)) {
-		return {
-			ok: false,
-			output: `Registry binary not found at ${REGISTRY_BIN}. Docker registry is only available inside the Stash container.`,
-			dryRun,
-		};
-	}
+export async function runGarbageCollection(dryRun = false, deleteUntagged = true): Promise<GcResult> {
 	if (!existsSync(REGISTRY_CONFIG)) {
 		return {
 			ok: false,
 			output: `${REGISTRY_CONFIG} not found. Enable Docker registry (ENABLE_DOCKER=true) and restart Stash.`,
+			dryRun,
+		};
+	}
+
+	if (getRepositoriesRoots().length === 0 || getBlobsRoots().length === 0) {
+		return {
+			ok: false,
+			output: "No registry storage layout found under /data/registry.",
 			dryRun,
 		};
 	}
@@ -80,22 +70,23 @@ export async function runGarbageCollection(dryRun = false): Promise<GcResult> {
 			};
 		}
 
-		const gc = runRegistryGc(gcArgs);
+		const gc = runStashGarbageCollection(dryRun, deleteUntagged);
 		if (!gc.ok) {
-			return {
-				ok: false,
-				output:
-					gc.output ||
-					`registry garbage-collect exited with code ${gc.code ?? "unknown"}. No additional output.`,
-				dryRun,
-			};
+			return { ok: false, output: gc.output, dryRun };
 		}
 
-		return {
-			ok: true,
-			output: gc.output || "Garbage collection completed successfully.",
-			dryRun,
-		};
+		let output = gc.output;
+		if (!dryRun) {
+			const pruned: string[] = [];
+			for (const repo of await listRepositories()) {
+				pruned.push(...(await pruneBrokenTags(repo)));
+			}
+			if (pruned.length > 0) {
+				output += `\n\nPruned ${pruned.length} broken tag link(s): ${pruned.join(", ")}`;
+			}
+		}
+
+		return { ok: true, output, dryRun };
 	} finally {
 		if (toggledReadonly) {
 			try {

@@ -2,6 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync } from "fs";
 import path from "path";
 import { issueInternalRegistryToken, scopesToAccess } from "./token-auth";
+import { readJsonBlob, readManifestBlob } from "./registry-layout";
 
 const REGISTRY_URL = process.env.REGISTRY_URL || "http://127.0.0.1:5000";
 const REGISTRY_DATA_ROOT = process.env.REGISTRY_DATA_ROOT || "/data/registry";
@@ -100,28 +101,6 @@ function normalizeDigest(digest: string): string {
 	return trimmed;
 }
 
-function getBlobsRoot(): string {
-	return path.join(REGISTRY_DATA_ROOT, "docker", "registry", "v2", "blobs");
-}
-
-function blobDataPath(digest: string): string | null {
-	const normalized = normalizeDigest(digest);
-	const match = normalized.match(/^sha256:([a-f0-9]{64})$/i);
-	if (!match) return null;
-	const hash = match[1];
-	return path.join(getBlobsRoot(), "sha256", hash.slice(0, 2), hash.slice(2), "data");
-}
-
-function readJsonBlob(digest: string): Record<string, unknown> | null {
-	const blobPath = blobDataPath(digest);
-	if (!blobPath || !existsSync(blobPath)) return null;
-	try {
-		return JSON.parse(readFileSync(blobPath, "utf8")) as Record<string, unknown>;
-	} catch {
-		return null;
-	}
-}
-
 function revisionLinkPath(repoPath: string, digest: string): string | null {
 	const normalized = normalizeDigest(digest);
 	const match = normalized.match(/^sha256:([a-f0-9]{64})$/i);
@@ -204,11 +183,6 @@ function digestFromTagLink(repoPath: string, tag: string): string | null {
 		}
 	}
 	return null;
-}
-
-function readManifestBlob(repoPath: string, manifestDigest: string): Record<string, unknown> | null {
-	const normalized = normalizeDigest(manifestDigest);
-	return readJsonBlob(normalized) ?? readManifestJsonFromRevision(repoPath, normalized);
 }
 
 function resolveManifestBody(
@@ -439,54 +413,52 @@ export async function getRepositoryDetail(repo: string): Promise<TagDetail[]> {
 	});
 }
 
-/** Digest the tag points to (manifest list or image manifest) — required for registry DELETE. */
-async function manifestDigestForTag(repo: string, tag: string): Promise<string | null> {
-	const res = await registryFetch(`/v2/${repo}/manifests/${encodeURIComponent(tag)}`, {
-		method: "HEAD",
-		scope: `repository:${repo}:pull`,
-		headers: { Accept: MANIFEST_ACCEPT },
-	});
-	if (res.ok) {
-		const header = res.headers.get("Docker-Content-Digest");
-		if (header) return normalizeDigest(header);
-	}
-	const raw = getManifestRawFromFs(repo, tag);
-	return raw?.digest ?? null;
-}
-
 /** Remove a tag directory on disk (only this tag; shared manifests stay). */
 function deleteTagOnFs(repo: string, tag: string): boolean {
-	const found = findRepositoryDir(repo);
-	if (!found) return false;
-	const tagDir = path.join(found.dir, "_manifests", "tags", tag);
-	if (!existsSync(tagDir)) return false;
-	rmSync(tagDir, { recursive: true, force: true });
-	return true;
+	const repoPath = normalizeRepoPath(repo);
+	let removed = false;
+	for (const root of getRepositoriesRoots()) {
+		const tagDir = path.join(root, repoPath, "_manifests", "tags", tag);
+		if (!existsSync(tagDir)) continue;
+		rmSync(tagDir, { recursive: true, force: true });
+		removed = true;
+	}
+	return removed;
 }
 
 /** Remove repository metadata directory (empty catalog entry after tags are gone). */
 function removeRepositoryOnFs(repo: string): boolean {
-	const found = findRepositoryDir(repo);
-	if (!found) return false;
-	rmSync(found.dir, { recursive: true, force: true });
-	return true;
+	const repoPath = normalizeRepoPath(repo);
+	let removed = false;
+	for (const root of getRepositoriesRoots()) {
+		const dir = path.join(root, repoPath);
+		if (!existsSync(path.join(dir, "_manifests"))) continue;
+		rmSync(dir, { recursive: true, force: true });
+		removed = true;
+	}
+	return removed;
 }
 
-// Delete a single tag (registry API only deletes by digest; shared digests use FS tag removal)
+// Delete a single tag — remove the tag reference only; manifests and blobs stay until GC.
 export async function deleteTag(repo: string, tag: string): Promise<boolean> {
-	const digest = await manifestDigestForTag(repo, tag);
-	if (!digest) return deleteTagOnFs(repo, tag);
-
-	const tags = await listTags(repo);
-	const sharing = (await Promise.all(tags.map(async (t) => ({ t, d: await manifestDigestForTag(repo, t) }))))
-		.filter((x) => x.d === digest)
-		.map((x) => x.t);
-
-	if (sharing.length === 1 && sharing[0] === tag) {
-		return deleteManifest(repo, digest);
-	}
-
 	return deleteTagOnFs(repo, tag);
+}
+
+function manifestExists(repoPath: string, manifestDigest: string): boolean {
+	return readManifestBlob(repoPath, manifestDigest) !== null;
+}
+
+/** Remove tag links that no longer resolve to a manifest (e.g. after a bad GC). */
+export async function pruneBrokenTags(repo: string): Promise<string[]> {
+	const repoPath = normalizeRepoPath(repo);
+	const pruned: string[] = [];
+	for (const tag of await listTags(repo)) {
+		const digest = digestFromTagLink(repoPath, tag);
+		if (!digest || !manifestExists(repoPath, digest)) {
+			if (deleteTagOnFs(repo, tag)) pruned.push(tag);
+		}
+	}
+	return pruned;
 }
 
 // Delete a manifest by digest (removes the manifest and all tags pointing to it)
@@ -594,38 +566,18 @@ export async function retagManifest(repo: string, sourceTag: string, targetTag: 
 
 export async function deleteRepository(repo: string): Promise<{ deleted: number; failed: number }> {
 	const tags = await listTags(repo);
-	const digests = new Set<string>();
-	for (const tag of tags) {
-		const d = await manifestDigestForTag(repo, tag);
-		if (d) digests.add(d);
-	}
-
 	let deleted = 0;
 	let failed = 0;
 
-	for (const digest of digests) {
-		if (await deleteManifest(repo, digest)) deleted++;
+	for (const tag of tags) {
+		if (await deleteTag(repo, tag)) deleted++;
 		else failed++;
 	}
 
-	// Remove leftover tag links and repo shell so /v2/_catalog no longer lists it
-	for (const tag of tags) {
-		if (deleteTagOnFs(repo, tag)) deleted++;
-	}
 	removeRepositoryOnFs(repo);
 
 	const remaining = await listTags(repo);
-	if (remaining.length > 0) {
-		failed += remaining.length;
-		for (const tag of remaining) {
-			if (await deleteTag(repo, tag)) {
-				failed--;
-				deleted++;
-			}
-		}
-		removeRepositoryOnFs(repo);
-	}
-
+	failed += remaining.length;
 	return { deleted, failed };
 }
 

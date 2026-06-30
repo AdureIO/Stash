@@ -265,7 +265,7 @@ export function SettingsPanel({ healthy, publicUrl, registryUrl, autoScanOnPush:
 				<CardContent className="space-y-3">
 					<p className="text-xs text-zinc-500">
 						Remove unreferenced blobs from storage. Temporarily switches the registry to read-only during
-						collection.
+						collection. Cleanup rules only remove tag references; GC reclaims the underlying data.
 					</p>
 					<div className="flex gap-2">
 						<Button variant="secondary" size="sm" onClick={() => runGc(true)} disabled={gcLoading}>
