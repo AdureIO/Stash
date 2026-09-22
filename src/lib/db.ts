@@ -255,6 +255,15 @@ export const db = {
 					`SELECT * FROM events WHERE repository = ? AND ${EVENTS_PUBLIC_SQL} ORDER BY timestamp DESC LIMIT ?`,
 				)
 				.all(repository, limit) as Event[],
+		/** Latest push per tag — when the tag landed here, which is not when the image was built. */
+		pushTimesByRepo: (repository: string) =>
+			getDb()
+				.prepare(
+					`SELECT tag, MAX(timestamp) AS pushed_at FROM events
+					 WHERE repository = ? AND action = 'push' AND tag IS NOT NULL AND tag != ''
+					 GROUP BY tag`,
+				)
+				.all(repository) as { tag: string; pushed_at: string }[],
 		statsByRepo: (repository: string) =>
 			getDb()
 				.prepare(

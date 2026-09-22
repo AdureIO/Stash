@@ -194,9 +194,13 @@ export function CleanupList({ rules: initial }: Props) {
 						min="1"
 						placeholder="e.g. 30"
 					/>
+					<p className="text-xs text-zinc-500">
+						Age is measured from when the tag was pushed. The newest tag and <code>latest</code> are
+						never deleted.
+					</p>
 					<label className="flex items-center gap-2 text-sm text-zinc-600 cursor-pointer">
 						<input type="checkbox" name="delete_untagged" className="rounded" />
-						Also delete untagged manifests
+						Also delete overwritten and untagged versions
 					</label>
 					<div className="flex gap-2 justify-end pt-1">
 						<Button variant="secondary" size="sm" type="button" onClick={() => setAddOpen(false)}>

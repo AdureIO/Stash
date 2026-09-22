@@ -2,7 +2,7 @@ import { existsSync } from "fs";
 import { execSync } from "child_process";
 import { db } from "./db";
 import { regenerateConfig } from "./registry-config";
-import { listRepositories, pruneBrokenTags } from "./registry";
+import { findBrokenTags, listRepositories } from "./registry";
 import { getBlobsRoots, getRepositoriesRoots, runStashGarbageCollection } from "./registry-layout";
 
 const SUPERVISOR_CONF = "/tmp/supervisord.conf";
@@ -33,7 +33,7 @@ function supervisorctl(cmd: string): { ok: boolean; output: string } {
 	}
 }
 
-export async function runGarbageCollection(dryRun = false, deleteUntagged = true): Promise<GcResult> {
+export async function runGarbageCollection(dryRun = false, deleteUntagged = false): Promise<GcResult> {
 	if (!existsSync(REGISTRY_CONFIG)) {
 		return {
 			ok: false,
@@ -75,14 +75,21 @@ export async function runGarbageCollection(dryRun = false, deleteUntagged = true
 			return { ok: false, output: gc.output, dryRun };
 		}
 
+		// Reported, never deleted: a tag that stops resolving is the symptom of a problem
+		// elsewhere, and removing it destroys the only record of what the tag pointed at.
 		let output = gc.output;
 		if (!dryRun) {
-			const pruned: string[] = [];
+			const broken: string[] = [];
 			for (const repo of await listRepositories()) {
-				pruned.push(...(await pruneBrokenTags(repo)));
+				broken.push(...(await findBrokenTags(repo)).map((tag) => `${repo}:${tag}`));
 			}
-			if (pruned.length > 0) {
-				output += `\n\nPruned ${pruned.length} broken tag link(s): ${pruned.join(", ")}`;
+			if (broken.length > 0) {
+				output += [
+					``,
+					``,
+					`${broken.length} tag(s) no longer resolve to a manifest: ${broken.join(", ")}`,
+					`They were left in place — nothing was deleted on their behalf.`,
+				].join("\n");
 			}
 		}
 

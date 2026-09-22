@@ -448,17 +448,20 @@ function manifestExists(repoPath: string, manifestDigest: string): boolean {
 	return readManifestBlob(repoPath, manifestDigest) !== null;
 }
 
-/** Remove tag links that no longer resolve to a manifest (e.g. after a bad GC). */
-export async function pruneBrokenTags(repo: string): Promise<string[]> {
+/**
+ * Tags whose link no longer resolves to a manifest — reported, not removed.
+ *
+ * The tag link is the only surviving record of which digest a tag pointed at, so deleting
+ * it turns a repairable registry into an unrecoverable one.
+ */
+export async function findBrokenTags(repo: string): Promise<string[]> {
 	const repoPath = normalizeRepoPath(repo);
-	const pruned: string[] = [];
+	const broken: string[] = [];
 	for (const tag of await listTags(repo)) {
 		const digest = digestFromTagLink(repoPath, tag);
-		if (!digest || !manifestExists(repoPath, digest)) {
-			if (deleteTagOnFs(repo, tag)) pruned.push(tag);
-		}
+		if (!digest || !manifestExists(repoPath, digest)) broken.push(tag);
 	}
-	return pruned;
+	return broken;
 }
 
 // Delete a manifest by digest (removes the manifest and all tags pointing to it)
