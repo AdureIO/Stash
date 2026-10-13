@@ -14,7 +14,9 @@ export async function POST(req: NextRequest) {
 async function handleTokenRequest(req: NextRequest) {
 	const { searchParams } = req.nextUrl;
 	const service = searchParams.get("service") || "";
-	const scope = searchParams.get("scope");
+	// Docker sends one `scope` param per repository (e.g. cross-repo blob mounts add
+	// `repository:<source>:pull` next to the push target), so collect all of them.
+	const scope = searchParams.getAll("scope").join(" ").trim() || null;
 	const offlineToken = searchParams.get("offline_token") === "true";
 	const clientId = searchParams.get("client_id");
 
